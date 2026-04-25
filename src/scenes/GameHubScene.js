@@ -35,7 +35,10 @@ export default class GameHubScene {
     // forwards desktop clicks: it gates on `_desktopClick !== undefined`.
     this._desktopClick = null;
     this.progress = { tutorial: false, l1: false, l2: false, l3: false };
+    this._loadProgress();
+  }
 
+  _loadProgress() {
     try {
       const saved = sessionStorage.getItem('vdv-progress');
       if (saved) this.progress = JSON.parse(saved);
@@ -45,12 +48,15 @@ export default class GameHubScene {
   // ---- public lifecycle ---------------------------------------------------
 
   init() {
+    // Re-read on init in case sessionStorage was written between constructor
+    // and init (e.g. transitionToHub right after a level's onComplete).
+    this._loadProgress();
     this._buildMenu();
     this.spawn = { player: [0, 0, 0], camera: [0, 1.6, 1.0] };
   }
 
   update(dt, controllers) {
-    this._checkMenuActivation(controllers);
+    this._checkMenuActivation();
   }
 
   getGrabbables() { return this.grabbables; }
@@ -185,39 +191,22 @@ export default class GameHubScene {
     if (this.onSelectPortal) this.onSelectPortal(def.id);
   }
 
-  _checkMenuActivation(controllers) {
-    if (this._prevSelect === undefined) this._prevSelect = [false, false];
-
-    // VR: trigger raycast against menu plane
-    const session = this.ctx.renderer.xr.getSession();
-    if (session) {
-      let idx = 0;
-      for (const source of session.inputSources) {
-        if (idx >= 2) break;
-        const pressed = source.gamepad && source.gamepad.buttons[0] && source.gamepad.buttons[0].pressed;
-        const freshPress = pressed && !this._prevSelect[idx];
-
-        if (freshPress) {
-          const ctrl = controllers[idx];
-          if (ctrl) {
-            const tempMat = new THREE.Matrix4().extractRotation(ctrl.matrixWorld);
-            const rc = new THREE.Raycaster();
-            rc.ray.origin.setFromMatrixPosition(ctrl.matrixWorld);
-            rc.ray.direction.set(0, 0, -1).applyMatrix4(tempMat);
-            const hits = rc.intersectObject(this.menuPlane, false);
-            if (hits.length > 0 && hits[0].uv) {
-              this._activateRow(this._hitTestRow(hits[0].uv));
-              this._prevSelect[idx] = pressed;
-              return;
-            }
-          }
-        }
-        this._prevSelect[idx] = pressed;
-        idx++;
-      }
+  // VR trigger pull is dispatched by main.js's onSelectStart when no
+  // grabbable was hit. The controller event fires per-controller, so the
+  // matrix is the right one — no inputSources iteration to misalign.
+  _onControllerClick(controller) {
+    const tempMat = new THREE.Matrix4().extractRotation(controller.matrixWorld);
+    const rc = new THREE.Raycaster();
+    rc.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+    rc.ray.direction.set(0, 0, -1).applyMatrix4(tempMat);
+    const hits = rc.intersectObject(this.menuPlane, false);
+    if (hits.length > 0 && hits[0].uv) {
+      this._activateRow(this._hitTestRow(hits[0].uv));
     }
+  }
 
-    // Desktop: forwarded mouse click
+  _checkMenuActivation() {
+    // Desktop: forwarded mouse click via main.js's mousedown handler.
     if (this._desktopClick) {
       const rc = new THREE.Raycaster();
       rc.setFromCamera(this._desktopClick, this.ctx.camera);

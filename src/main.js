@@ -275,7 +275,14 @@ function onSelectStart(controller) {
     if (obj.userData.grabbable) {
       controller.attach(obj);
       controller.userData.held = obj;
+      return;
     }
+  }
+
+  // No grab hit — let the active scene treat the trigger as a click
+  // (e.g. hub menu raycast). Mirrors the desktop mouse-click path.
+  if (activeScene && activeScene._onControllerClick) {
+    activeScene._onControllerClick(controller);
   }
 }
 
