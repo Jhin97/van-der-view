@@ -13,6 +13,58 @@ import { buildNarrativePanel } from '../ui/narrative-panel.js';
 const ASSET_BASE = '/assets/v1';
 const NARRATIVE_PATH = '/src/data/l1-narrative.json';
 const SPAWN_OFFSET = new THREE.Vector3(0.6, 0.0, 0.0); // ≥ 6 Å along +x relative to pocket
+
+// Procedural geometry fallbacks when GLB assets are not available.
+function displace(x, y, z) {
+  return 0.12 * (Math.sin(x * 3.7 + y * 2.3) + Math.sin(y * 4.1 + z * 1.9) + Math.sin(z * 3.3 + x * 2.7)) / 3;
+}
+
+function createProteinBlob(color, openSide) {
+  const geo = new THREE.IcosahedronGeometry(0.5, 4);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const d = displace(x, y, z);
+    const len = Math.sqrt(x * x + y * y + z * z) || 1;
+    pos.setXYZ(i, x + (x / len) * d, y + (y / len) * d, z + (z / len) * d);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+
+  const indexAttr = geo.getIndex();
+  const keepPositions = [];
+  for (let i = 0; i < indexAttr.count; i += 3) {
+    const a = indexAttr.getX(i), b = indexAttr.getX(i + 1), c = indexAttr.getX(i + 2);
+    const cx = (pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3;
+    const isOnOpenSide = openSide === 'right' ? cx > 0 : cx < 0;
+    if (!isOnOpenSide) {
+      keepPositions.push(pos.getX(a), pos.getY(a), pos.getZ(a), pos.getX(b), pos.getY(b), pos.getZ(b), pos.getX(c), pos.getY(c), pos.getZ(c));
+    }
+  }
+  const shellGeo = new THREE.BufferGeometry();
+  shellGeo.setAttribute('position', new THREE.Float32BufferAttribute(keepPositions, 3));
+  shellGeo.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.1, transparent: true, opacity: 0.75, side: THREE.DoubleSide });
+  return new THREE.Mesh(shellGeo, mat);
+}
+
+function createLigand() {
+  const geo = new THREE.DodecahedronGeometry(0.1, 1);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const d = displace(x, y, z) * 0.25;
+    const len = Math.sqrt(x * x + y * y + z * z) || 1;
+    pos.setXYZ(i, x + (x / len) * d, y + (y / len) * d, z + (z / len) * d);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0x332200, roughness: 0.3, metalness: 0.4 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'celecoxib-fallback';
+  return mesh;
+}
 const TELEMETRY_INTERVAL_MS = 1000;
 const BEST_POSE_BADGE_FADE_MS = 5000;
 
@@ -62,38 +114,65 @@ export default class LevelOneScene {
       loadJSON(NARRATIVE_PATH),
     ]);
 
-    this.pocket = pocket;
-    this.vinaBest = vina.runs.find((r) => r.ligand === 'celecoxib' && r.target === 'cox2')?.best_pose;
-    if (!this.vinaBest) {
-      throw new Error('LevelOneScene: vina_results.json missing (celecoxib, cox2) entry');
-    }
-    this.narrative = narrative;
+    // If GLB assets are missing (F-002 pipeline not yet run), fall back to
+    // procedural geometry so the level is still playable.
+    this.pocket = pocket || {
+      pocket_center: [0, 0, 0],
+      key_residues: [
+        { name: 'VAL523', ca_xyz: [0.3, 0.1, -0.2], side_chain_centroid: [0.35, 0.1, -0.15] },
+      ],
+    };
+    this.vinaBest = vina?.runs?.find((r) => r.ligand === 'celecoxib' && r.target === 'cox2')?.best_pose || {
+      ligand_centroid: [0.0, 0.0, 0.0],
+    };
+    this.narrative = narrative || {
+      steps: [
+        { trigger: 'enter', title: 'COX-2 Docking', body: 'Dock celecoxib into the COX-2 active site. Grab the ligand and move it into the pocket.' },
+      ],
+    };
 
-    const pocketCenter = new THREE.Vector3(...pocket.pocket_center);
-
-    // Centre everything around pocket so the user starts looking at the action.
+    // Build pivot — the centre of all scene objects
     const pivot = new THREE.Group();
-    pivot.position.set(0, 1.0, -0.8); // 0.8 m forward of player at standing height
+    pivot.position.set(0, 1.0, -0.8);
     this.ctx.scene.add(pivot);
     this.objects.push(pivot);
 
+    const pocketCenter = new THREE.Vector3(...this.pocket.pocket_center);
     const offsetMatrix = new THREE.Matrix4().makeTranslation(
       -pocketCenter.x, -pocketCenter.y, -pocketCenter.z
     );
-    cox2Surface.applyMatrix4(offsetMatrix);
-    cox2Cartoon.applyMatrix4(offsetMatrix);
-    pivot.add(cox2Surface);
-    pivot.add(cox2Cartoon);
 
-    // Ligand spawn — translate same way so it lives in the same frame
-    ligand.applyMatrix4(offsetMatrix);
-    ligand.position.add(SPAWN_OFFSET);
-    ligand.userData.grabbable = true;
-    pivot.add(ligand);
-    this.ligand = ligand;
+    if (cox2Surface) {
+      cox2Surface.applyMatrix4(offsetMatrix);
+      pivot.add(cox2Surface);
+    } else {
+      // Procedural fallback: a displaced icosahedron for COX-2
+      const blob = createProteinBlob(0xd94a4a, 'left');
+      pivot.add(blob);
+    }
+
+    if (cox2Cartoon) {
+      cox2Cartoon.applyMatrix4(offsetMatrix);
+      pivot.add(cox2Cartoon);
+    }
+
+    if (ligand) {
+      ligand.applyMatrix4(offsetMatrix);
+      ligand.position.add(SPAWN_OFFSET);
+      ligand.userData.grabbable = true;
+      pivot.add(ligand);
+      this.ligand = ligand;
+    } else {
+      // Procedural fallback: a small dodecahedron for celecoxib
+      const fallbackLigand = createLigand();
+      fallbackLigand.position.copy(SPAWN_OFFSET);
+      fallbackLigand.userData.grabbable = true;
+      pivot.add(fallbackLigand);
+      this.ligand = fallbackLigand;
+    }
     this.spawnTransform = {
-      position: ligand.position.clone(),
-      quaternion: ligand.quaternion.clone(),
+      position: this.ligand.position.clone(),
+      quaternion: this.ligand.quaternion.clone(),
     };
 
     // Score readout above the pocket (in pivot-local coords -> already centred at origin).
@@ -108,9 +187,8 @@ export default class LevelOneScene {
     this.narrativePanel = buildNarrativePanel({
       pocketCenter: { x: 0, y: 0, z: 0 },
       pocketAnnotation: {
-        ...pocket,
-        // Shift residue Cα to pivot-local frame
-        key_residues: (pocket.key_residues || []).map((r) => ({
+        ...this.pocket,
+        key_residues: (this.pocket.key_residues || []).map((r) => ({
           ...r,
           ca_xyz: [r.ca_xyz[0] - pocketCenter.x, r.ca_xyz[1] - pocketCenter.y, r.ca_xyz[2] - pocketCenter.z],
           side_chain_centroid: [
@@ -120,7 +198,7 @@ export default class LevelOneScene {
           ],
         })),
       },
-      narrative,
+      narrative: this.narrative,
       scoreReadoutAnchor: { x: 0, y: 0.5, z: 0 },
     });
     pivot.add(this.narrativePanel.group);
