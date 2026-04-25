@@ -1,10 +1,13 @@
 import * as THREE from 'three';
+import { loadGLB } from '../lib/asset-loader.js';
 
 // ---------------------------------------------------------------------------
-// F-003 Tutorial Mode — Toy Pocket
+// F-003 Tutorial Mode — Toy Pocket (in a lab environment)
 // Acceptance: procedural pocket + 3 H-bond markers, grab→rotate→snap prompts,
 //             steric-clash red / H-bond-vector blue overlay, no deadlocks
 // ---------------------------------------------------------------------------
+
+const LAB_ASSET_BASE = '/assets/v1/lab';
 
 const STATES = {
   INTRO:       'INTRO',
@@ -60,6 +63,7 @@ export default class TutorialScene {
     this._buildPrompt();
     this._buildArrow();
     this._buildFloorDecor();
+    this._buildLabEnvironment();
     this._enterState(STATES.INTRO);
     // Spawn ~1m from the pocket (which sits at z=-0.6) so the user can
     // interact without walking.
@@ -321,6 +325,90 @@ export default class TutorialScene {
     ring.position.set(0, 0.005, -0.6);
     this._add(ring);
     this.floorRing = ring;
+  }
+
+  // ---- lab environment (Tripo AI models) ------------------------------------
+
+  _buildLabEnvironment() {
+    // Layout (user at origin, facing -Z):
+    //   Table centered at z=-0.6, pocket on top at y=1.0
+    //   Microscope on right side of table
+    //   Beaker on left side of table
+    //   Monitor behind table (on wall/stand)
+    //   Wall shelf above the table on back wall
+    //   Lab stool off to the right side
+
+    const placements = [
+      { file: 'lab-table.glb',     pos: [0, 0.72, -0.6],   rot: [0, 0, 0],       scale: 0.55 },
+      { file: 'microscope.glb',    pos: [0.45, 0.72, -0.7], rot: [0, Math.PI * 0.15, 0], scale: 0.2 },
+      { file: 'beaker.glb',        pos: [-0.4, 0.72, -0.65], rot: [0, 0, 0],       scale: 0.12 },
+      { file: 'monitor-screen.glb', pos: [0, 1.4, -1.2],   rot: [0, 0, 0],       scale: 0.35 },
+      { file: 'wall-shelf.glb',    pos: [0.6, 1.8, -1.15],  rot: [0, Math.PI * 0.1, 0], scale: 0.4 },
+      { file: 'lab-stool.glb',     pos: [0.9, 0, -0.2],    rot: [0, -Math.PI * 0.3, 0], scale: 0.45 },
+    ];
+
+    for (const { file, pos, rot, scale } of placements) {
+      loadGLB(`${LAB_ASSET_BASE}/${file}`).then((model) => {
+        if (!model) return;
+        model.position.set(...pos);
+        model.rotation.set(...rot);
+        model.scale.setScalar(scale);
+        // Make lab objects non-grabbable so they don't interfere with gameplay
+        model.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = false;
+            child.receiveShadow = true;
+          }
+          child.userData.grabbable = false;
+        });
+        this._add(model);
+      });
+    }
+
+    // Add subtle lab-style floor tiles
+    this._buildLabFloor();
+
+    // Add back wall
+    this._buildLabWall();
+  }
+
+  _buildLabFloor() {
+    // Tiled floor effect — a slightly different shade under the table area
+    const tileGeo = new THREE.PlaneGeometry(4, 3);
+    const tileMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1a2e,
+      roughness: 0.85,
+      metalness: 0.05,
+    });
+    const tile = new THREE.Mesh(tileGeo, tileMat);
+    tile.rotation.x = -Math.PI / 2;
+    tile.position.set(0, 0.002, -0.6);
+    this._add(tile);
+  }
+
+  _buildLabWall() {
+    // Back wall — large dark plane behind the table area
+    const wallGeo = new THREE.PlaneGeometry(5, 3);
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x14142a,
+      roughness: 0.95,
+      metalness: 0.0,
+    });
+    const wall = new THREE.Mesh(wallGeo, wallMat);
+    wall.position.set(0, 1.5, -1.4);
+    this._add(wall);
+
+    // Accent strip on wall (horizontal glowing line)
+    const stripGeo = new THREE.PlaneGeometry(4.5, 0.01);
+    const stripMat = new THREE.MeshBasicMaterial({ color: 0x2244aa, transparent: true, opacity: 0.6 });
+    const strip = new THREE.Mesh(stripGeo, stripMat);
+    strip.position.set(0, 2.2, -1.39);
+    this._add(strip);
+
+    // Second accent strip lower
+    const strip2 = strip.clone();
+    strip2.position.y = 1.0;
+    this._add(strip2);
   }
 
   // ---- state machine ------------------------------------------------------
