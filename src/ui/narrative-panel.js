@@ -182,17 +182,26 @@ export function buildNarrativePanel({
     brief.visible = false;
   }
 
+  function toggleBrief() {
+    brief.visible = !brief.visible;
+  }
+
   function update(dtMs, camera) {
     dtSinceBoot += dtMs;
-    const autoDismissMs = (narrative.brief?.auto_dismiss_seconds ?? 15) * 1000;
-    if (dtSinceBoot >= autoDismissMs) brief.visible = false;
+    // Auto-dismiss removed entirely: users complained the brief vanished
+    // mid-onboarding with no way to recall it. Manual-only via A button
+    // (callers can still call dismissBrief/toggleBrief explicitly).
     if (camera) {
-      brief.lookAt(camera.position);
-      if (hint) hint.lookAt(camera.position);
-      // Side-notes are small enough that fixed orientation is fine; if needed,
-      // wrap them in a billboarded child here.
+      // Only billboard `brief` if it's still living inside our group (i.e.
+      // world-locked). Callers that detach `brief` and reparent it onto the
+      // camera (HUD bundle) face the camera by virtue of being a child of
+      // it; calling lookAt against the parent camera misorients it.
+      if (brief.parent === group) brief.lookAt(camera.position);
+      if (hint && hint.parent === group) hint.lookAt(camera.position);
     }
   }
 
-  return { group, dismissBrief, update };
+  // Expose the inner meshes so callers can detach + reparent them (e.g. into
+  // a HUD bundle) without losing the dismiss / billboard contract.
+  return { group, brief, hint, dismissBrief, toggleBrief, update };
 }

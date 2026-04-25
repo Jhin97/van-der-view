@@ -6,7 +6,7 @@ import TutorialScene from './scenes/TutorialScene.js';
 import GameHubScene from './scenes/GameHubScene.js';
 import LevelOneScene from './scenes/LevelOneScene.js';
 import LevelTwoScene from './scenes/LevelTwoScene.js';
-import LevelThreeScene from './scenes/LevelThreeScene.js';
+// L3 cut from MVP — see GameHubScene.LEVEL_DEFS / SCENE_MAP below.
 import { PRE_QUESTIONS, POST_QUESTIONS } from './survey-questions.js';
 import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from './survey-ui.js';
 
@@ -171,20 +171,32 @@ async function loadScene(sceneIdOrClass) {
 async function transitionToScene(sceneId) {
   if (transitioning) return;
   transitioning = true;
-  await _fadeOut(300);
-  await loadScene(sceneId);
-  await _fadeIn(300);
-  transitioning = false;
+  try {
+    await _fadeOut(300);
+    await loadScene(sceneId);
+    await _fadeIn(300);
+  } catch (err) {
+    console.error('[transition] scene transition failed', err);
+  } finally {
+    // Always release the lock — otherwise a thrown error in load/fade
+    // pins transitioning=true and the user is stuck on a dead screen.
+    transitioning = false;
+  }
 }
 
 async function transitionToHub() {
   if (transitioning) return;
   transitioning = true;
-  await _fadeOut(300);
-  await loadScene(GameHubScene);
-  _syncHubProgress();
-  await _fadeIn(300);
-  transitioning = false;
+  try {
+    await _fadeOut(300);
+    await loadScene(GameHubScene);
+    _syncHubProgress();
+    await _fadeIn(300);
+  } catch (err) {
+    console.error('[transition] hub transition failed', err);
+  } finally {
+    transitioning = false;
+  }
 }
 
 // Fade animation state — ticked from the main animation loop so it works
@@ -313,23 +325,34 @@ function onSelectEnd(controller) {
 const controller0 = buildController(0);
 const controller1 = buildController(1);
 
-function handleThumbstickLocomotion() {
+// Player is intentionally locked in space — thumbsticks no longer drive
+// player position. Per [[webxr-locomotion-comfort]] educational scenes
+// should disable smooth-locomotion (high cybersickness risk). Instead the
+// thumbstick is forwarded to the active scene so it can use it to translate
+// the object the user is interacting with.
+//
+// Convention (Quest 3 / 3S Touch Plus, see [[quest3s-button-map]]):
+//   left  axes[2/3] = leftX  / leftY   (forward push = -1)
+//   right axes[2/3] = rightX / rightY  (forward push = -1)
+function handleThumbstickInput(dt) {
   const session = renderer.xr.getSession();
   if (!session) return;
+  const dz = (v) => (Math.abs(v) < 0.15 ? 0 : v);
+  let leftX = 0, leftY = 0, rightX = 0, rightY = 0;
   for (const source of session.inputSources) {
     if (!source.gamepad || !source.handedness) continue;
-    const axes = source.gamepad.axes;
-    if (axes.length < 4) continue;
-    const x = axes[2];
-    const y = axes[3];
-    if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
-      const speed = 0.04;
-      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion()));
-      forward.y = 0; forward.normalize();
-      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
-      player.position.addScaledVector(forward, -y * speed);
-      player.position.addScaledVector(right, x * speed);
+    const a = source.gamepad.axes;
+    if (a.length < 4) continue;
+    if (source.handedness === 'left') {
+      leftX = dz(a[2]);
+      leftY = dz(a[3]);
+    } else if (source.handedness === 'right') {
+      rightX = dz(a[2]);
+      rightY = dz(a[3]);
     }
+  }
+  if (activeScene && activeScene.applyThumbstickInput) {
+    activeScene.applyThumbstickInput({ leftX, leftY, rightX, rightY }, dt);
   }
 }
 
@@ -440,7 +463,7 @@ renderer.setAnimationLoop((time) => {
   // (where window.requestAnimationFrame is paused).
   _tickFade(time);
 
-  handleThumbstickLocomotion();
+  handleThumbstickInput(dt);
   handleDesktopFallback(dt);
 
   if (activeScene && !transitioning) {
