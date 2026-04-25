@@ -17,7 +17,7 @@ const UNLOCK_ORDER = ['tutorial', 'l1', 'l2', 'l3'];
 
 export default class GameHubScene {
   constructor(ctx) {
-    this.ctx = ctx; // { scene, player, renderer }
+    this.ctx = ctx; // { scene, player, renderer, camera }
     this.objects = [];
     this.grabbables = [];
     this.portals = [];
@@ -388,7 +388,7 @@ export default class GameHubScene {
     // Desktop: click on portal frame
     if (this._desktopClick) {
       const rc = new THREE.Raycaster();
-      rc.setFromCamera(this._desktopClick, this.ctx.renderer.xr.getCamera(camera));
+      rc.setFromCamera(this._desktopClick, this.ctx.camera);
       for (const p of this.portals) {
         if (!this.isUnlocked(p.def.id)) continue;
         const hits = rc.intersectObject(p.frame, false);

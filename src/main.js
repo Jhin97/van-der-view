@@ -131,7 +131,7 @@ function loadScene(sceneIdOrClass) {
 
   // Synchronous scene switch (no transition)
   if (activeScene) activeScene.destroy();
-  activeScene = new SceneClass({ scene, player, renderer });
+  activeScene = new SceneClass({ scene, player, renderer, camera });
   activeScene.init();
 
   // Wire level completion → hub return
@@ -481,6 +481,7 @@ async function runPostSurvey() {
     sessionId,
   );
   await submitSurvey(responses);
+  animating = false;
   showThankYou();
 }
 
