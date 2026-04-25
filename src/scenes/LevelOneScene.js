@@ -351,6 +351,13 @@ export default class LevelOneScene {
       this.bestPoseFireTime = this.dtSinceInit;
       this.readout.showBadge();
       this._showSuccessCard(result.total);
+      // Hand off to the scene manager (markProgress + transitionToHub)
+      // after the success card finishes its hold so the level actually
+      // completes. Total card duration ≈ 3.2 s; fire onComplete just past
+      // peak so the user reads the score before fade.
+      this._completeTimer = setTimeout(() => {
+        if (this.onComplete) this.onComplete();
+      }, 3200);
       postTelemetry([
         {
           session_id: window.__VDV_SESSION_ID || 'anon',
@@ -600,7 +607,8 @@ export default class LevelOneScene {
       const bPressed = !!buttons[5]?.pressed;
 
       if (aPressed && !this.lastButtons.A) {
-        this.narrativePanel.dismissBrief();
+        // Toggle (was dismiss-only) so users can recall the brief.
+        this.narrativePanel.toggleBrief();
       }
       if (bPressed && !this.lastButtons.B) {
         this._redock();
@@ -632,6 +640,7 @@ export default class LevelOneScene {
   }
 
   destroy() {
+    if (this._completeTimer) { clearTimeout(this._completeTimer); this._completeTimer = null; }
     // HUD bundle (score readout + brief + success card) is parented to the
     // camera, not the scene — explicit detach so it doesn't survive into
     // the next scene.

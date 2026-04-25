@@ -182,13 +182,15 @@ export function buildNarrativePanel({
     brief.visible = false;
   }
 
+  function toggleBrief() {
+    brief.visible = !brief.visible;
+  }
+
   function update(dtMs, camera) {
     dtSinceBoot += dtMs;
-    // 15 s used to be the default; users complained the brief vanished
-    // mid-onboarding. Default 600 s now (effectively manual-dismiss only)
-    // unless the narrative.json explicitly sets a shorter value.
-    const autoDismissMs = (narrative.brief?.auto_dismiss_seconds ?? 600) * 1000;
-    if (dtSinceBoot >= autoDismissMs) brief.visible = false;
+    // Auto-dismiss removed entirely: users complained the brief vanished
+    // mid-onboarding with no way to recall it. Manual-only via A button
+    // (callers can still call dismissBrief/toggleBrief explicitly).
     if (camera) {
       // Only billboard `brief` if it's still living inside our group (i.e.
       // world-locked). Callers that detach `brief` and reparent it onto the
@@ -201,5 +203,5 @@ export function buildNarrativePanel({
 
   // Expose the inner meshes so callers can detach + reparent them (e.g. into
   // a HUD bundle) without losing the dismiss / billboard contract.
-  return { group, brief, hint, dismissBrief, update };
+  return { group, brief, hint, dismissBrief, toggleBrief, update };
 }
