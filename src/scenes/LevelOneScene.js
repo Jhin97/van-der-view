@@ -24,8 +24,27 @@ const PIVOT_SCALE = 0.015;
 // + [[prior-art-nanome]] (bimanual scale is the muscle memory we steal).
 const PIVOT_SCALE_MIN = 0.005;
 const PIVOT_SCALE_MAX = 0.20;
+// 1:1 wrist rotation looks subtle on a heavily scaled-down protein, so
+// amplify the rotational delta only (translation stays 1:1 to keep the
+// "grab the world" metaphor honest).
+const ROTATION_GAIN = 2.5;
 
 const TELEMETRY_ENDPOINT = '/api/telemetry';
+
+// Stretch the angle of a quaternion by a gain factor (preserves axis).
+// Used to amplify wrist rotation when scaling pivot rotation in grip mode.
+function _amplifyQuat(delta, gain) {
+  const w = Math.max(-1, Math.min(1, delta.w));
+  const halfAngle = Math.acos(w);
+  if (halfAngle < 1e-4) return new THREE.Quaternion();
+  const sinHalf = Math.sin(halfAngle);
+  const ax = delta.x / sinHalf;
+  const ay = delta.y / sinHalf;
+  const az = delta.z / sinHalf;
+  const newHalf = halfAngle * gain;
+  const sinNew = Math.sin(newHalf);
+  return new THREE.Quaternion(ax * sinNew, ay * sinNew, az * sinNew, Math.cos(newHalf));
+}
 
 async function postTelemetry(events) {
   try {
@@ -312,25 +331,35 @@ export default class LevelOneScene {
     }
 
     if (numActive === 1) {
-      // Single-hand grip = 6-DOF "grab the world": pivot follows the
-      // controller's full pose (translate + rotate). Snapshot the relative
-      // pose at grip-start; each frame reapply it so pivot rides on the
-      // controller without ever physically reparenting (which would mess
-      // with the ligand's grabbable child).
+      // Single-hand grip — translate pivot 1:1 with hand position, rotate
+      // by amplified controller rotation around the pivot's own centre.
+      // Decoupled rather than matrix-relative so we can apply ROTATION_GAIN
+      // to rotation only — pure 6-DOF follow felt unresponsive on a
+      // 0.015-scaled protein.
       const ctrl = leftDown ? leftCtrl : rightCtrl;
       if (!ctrl) return;
+      const ctrlPos = new THREE.Vector3();
+      const ctrlQuat = new THREE.Quaternion();
+      ctrl.getWorldPosition(ctrlPos);
+      ctrl.getWorldQuaternion(ctrlQuat);
+
       if (s.active !== 1) {
         s.active = 1;
-        // relMat = ctrlWorld⁻¹ · pivotWorld
-        const ctrlInv = ctrl.matrixWorld.clone().invert();
-        s.relPivotMat = ctrlInv.multiply(this.pivot.matrixWorld);
+        s.ctrlStartPos = ctrlPos.clone();
+        s.ctrlStartQuat = ctrlQuat.clone();
+        s.pivotStartPos = this.pivot.position.clone();
+        s.pivotStartQuat = this.pivot.quaternion.clone();
       } else {
-        // pivot.world = ctrlWorld · relMat   (preserve current scale)
-        const newMat = ctrl.matrixWorld.clone().multiply(s.relPivotMat);
-        const _scale = new THREE.Vector3();
-        newMat.decompose(this.pivot.position, this.pivot.quaternion, _scale);
-        // _scale is the snapshot scale; we leave pivot.scale untouched so
-        // bimanual scale that may have happened earlier is preserved.
+        // Translate 1:1 with the hand
+        const deltaPos = ctrlPos.clone().sub(s.ctrlStartPos);
+        this.pivot.position.copy(s.pivotStartPos).add(deltaPos);
+
+        // Amplify rotation: convert delta to axis-angle, scale angle by
+        // ROTATION_GAIN, rebuild quaternion, prepend to pivot start.
+        const deltaQuat = ctrlQuat.clone().multiply(s.ctrlStartQuat.clone().invert());
+        const amp = _amplifyQuat(deltaQuat, ROTATION_GAIN);
+        this.pivot.quaternion.copy(s.pivotStartQuat).premultiply(amp);
+
         this._syncUiAnchor();
       }
     } else {
