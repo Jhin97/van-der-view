@@ -113,6 +113,11 @@ export default class LevelOneScene {
     this.dtSinceInit = 0;
     this.redockCount = 0;
     this.lastButtons = { A: false, B: false }; // edge detection on left controller
+    // Scene-manager callback. Must be `null` (not undefined) so main.js's
+    // loadScene() wires it: `if (next.onComplete !== undefined) next.onComplete = ...`.
+    // Without this the dock-success transition silently no-ops.
+    this.onComplete = null;
+    this._completeTimer = null;
     // Two-handed grip gesture state — single grip = translate pivot,
     // both grips = bimanual scale + translate (Nanome-style).
     this._gripState = {

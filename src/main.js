@@ -98,7 +98,7 @@ function updateFadeQuad() {
 const SCENE_MAP = {
   tutorial: TutorialScene,
   l1: LevelOneScene,
-  l2: null, // F-005
+  l2: LevelTwoScene, // F-005
   l3: LevelThreeScene, // F-006
 };
 
