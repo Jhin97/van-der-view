@@ -140,8 +140,147 @@ export default class LevelOneScene {
     ]);
   }
 
-  update(/* dt, controllers */) {
-    // Filled in Task 7
+  update(dt, controllers) {
+    if (!this.ready || !this.ligand) return;
+
+    this.dtSinceInit += dt;
+    this.telemetryAccumMs += dt;
+
+    // Resolve current camera (XR session-bound when presenting, else null).
+    const xr = this.ctx.renderer.xr;
+    const camera = xr.isPresenting ? xr.getCamera() : null;
+
+    // Collect ligand atom positions (sub-sampled vertex proxy)
+    this.ligand.updateMatrixWorld(true);
+    const atoms = extractAtomPositions(this.ligand);
+
+    // Compute centroid in world space
+    const centroid = new THREE.Vector3();
+    if (atoms.length > 0) {
+      for (const p of atoms) centroid.add(new THREE.Vector3(p.x, p.y, p.z));
+      centroid.multiplyScalar(1 / atoms.length);
+    } else {
+      centroid.copy(this.ligand.getWorldPosition(new THREE.Vector3()));
+    }
+
+    // Convert to pivot-local for the pocket frame the spec lives in
+    const pivotInverse = this.pivot.matrixWorld.clone().invert();
+    const localCentroid = centroid.clone().applyMatrix4(pivotInverse);
+    const localAtoms = atoms.map((p) => {
+      const v = new THREE.Vector3(p.x, p.y, p.z).applyMatrix4(pivotInverse);
+      return { x: v.x, y: v.y, z: v.z };
+    });
+
+    // Re-frame pocket annotation centroids to pivot-local on the fly
+    const pocketCenter = new THREE.Vector3(...this.pocket.pocket_center);
+    const reframedAnnotation = {
+      ...this.pocket,
+      key_residues: (this.pocket.key_residues || []).map((r) => ({
+        ...r,
+        side_chain_centroid: [
+          r.side_chain_centroid[0] - pocketCenter.x,
+          r.side_chain_centroid[1] - pocketCenter.y,
+          r.side_chain_centroid[2] - pocketCenter.z,
+        ],
+      })),
+    };
+    const reframedVina = {
+      ligand_centroid: [
+        this.vinaBest.ligand_centroid[0] - pocketCenter.x,
+        this.vinaBest.ligand_centroid[1] - pocketCenter.y,
+        this.vinaBest.ligand_centroid[2] - pocketCenter.z,
+      ],
+    };
+
+    const result = computeScore({
+      ligandCentroid: { x: localCentroid.x, y: localCentroid.y, z: localCentroid.z },
+      ligandAtoms: localAtoms,
+      pocketAnnotation: reframedAnnotation,
+      vinaBestPose: reframedVina,
+    });
+
+    // Re-bind the camera each frame so billboard look-at uses the live XR pose.
+    if (camera) this.readout.group.userData._cam = camera;
+    this.readout.update(result);
+    if (camera) this.readout.group.lookAt(camera.position);
+    this.narrativePanel.update(dt, camera);
+
+    if (result.isBestPose && !this.bestPoseFired) {
+      this.bestPoseFired = true;
+      this.bestPoseFireTime = this.dtSinceInit;
+      this.readout.showBadge();
+      postTelemetry([
+        {
+          session_id: window.__VDV_SESSION_ID || 'anon',
+          event_type: 'best_pose_hit',
+          level: 'L1',
+          total: result.total,
+          rawDistance: result.rawDistance,
+          time_to_hit_ms: this.dtSinceInit,
+          ts: Date.now(),
+        },
+      ]);
+    }
+
+    if (this.telemetryAccumMs >= TELEMETRY_INTERVAL_MS) {
+      this.telemetryAccumMs = 0;
+      postTelemetry([
+        {
+          session_id: window.__VDV_SESSION_ID || 'anon',
+          event_type: 'score_update',
+          level: 'L1',
+          total: result.total,
+          components: result.components,
+          rawDistance: result.rawDistance,
+          ts: Date.now(),
+        },
+      ]);
+    }
+
+    this._handleLeftControllerButtons(controllers);
+  }
+
+  _handleLeftControllerButtons(controllers) {
+    const session = this.ctx.renderer.xr.getSession();
+    if (!session) return;
+    for (const source of session.inputSources) {
+      if (source.handedness !== 'left' || !source.gamepad) continue;
+      const buttons = source.gamepad.buttons || [];
+      // Quest 3S: button index 4 = A (lower), 5 = B (upper) on left controller
+      // (exact indices: trigger=0, squeeze=1, thumbstick=3, A=4, B=5)
+      const aPressed = !!buttons[4]?.pressed;
+      const bPressed = !!buttons[5]?.pressed;
+
+      if (aPressed && !this.lastButtons.A) {
+        this.narrativePanel.dismissBrief();
+      }
+      if (bPressed && !this.lastButtons.B) {
+        this._redock();
+      }
+      this.lastButtons.A = aPressed;
+      this.lastButtons.B = bPressed;
+    }
+  }
+
+  _redock() {
+    if (!this.ligand || !this.spawnTransform) return;
+    // If the ligand is currently held by a controller, detach it first.
+    if (this.ligand.parent && this.ligand.parent !== this.pivot) {
+      this.pivot.attach(this.ligand);
+    }
+    this.ligand.position.copy(this.spawnTransform.position);
+    this.ligand.quaternion.copy(this.spawnTransform.quaternion);
+    this.bestPoseFired = false;
+    this.redockCount += 1;
+    postTelemetry([
+      {
+        session_id: window.__VDV_SESSION_ID || 'anon',
+        event_type: 'redock_count',
+        level: 'L1',
+        count: this.redockCount,
+        ts: Date.now(),
+      },
+    ]);
   }
 
   destroy() {
