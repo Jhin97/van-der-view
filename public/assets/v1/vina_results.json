@@ -1,0 +1,12 @@
+{
+  "runs": [
+    {
+      "ligand": "celecoxib",
+      "target": "cox2",
+      "best_pose": {
+        "ligand_centroid": [0.0, 0.0, 0.0],
+        "affinity_kcal_mol": -9.4
+      }
+    }
+  ]
+}

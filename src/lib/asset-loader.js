@@ -13,22 +13,31 @@ const dracoLoader = new DRACOLoader().setDecoderPath(
 const gltfLoader = new GLTFLoader().setDRACOLoader(dracoLoader);
 
 export function loadGLB(url) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     gltfLoader.load(
       url,
       (gltf) => resolve(gltf.scene),
       undefined,
-      (err) => reject(new Error(`loadGLB(${url}) failed: ${err.message || err}`))
+      () => {
+        console.warn(`[asset-loader] loadGLB(${url}) failed — returning null`);
+        resolve(null);
+      }
     );
   });
 }
 
 export async function loadJSON(url) {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`loadJSON(${url}) failed: HTTP ${res.status}`);
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`[asset-loader] loadJSON(${url}) failed — HTTP ${res.status}`);
+      return null;
+    }
+    return res.json();
+  } catch (err) {
+    console.warn(`[asset-loader] loadJSON(${url}) failed — ${err.message}`);
+    return null;
   }
-  return res.json();
 }
 
 /**

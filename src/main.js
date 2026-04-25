@@ -98,9 +98,8 @@ function updateFadeQuad() {
 const SCENE_MAP = {
   tutorial: TutorialScene,
   l1: LevelOneScene,
-  l2: LevelTwoScene, // F-005
-  // l3 dropped from the MVP scope — keep the slot null so the hub menu
-  // entry (if any leaks back in) just no-ops.
+  l2: LevelTwoScene,
+  l3: LevelThreeScene, // F-006
 };
 
 function registerScene(id, SceneClass) {

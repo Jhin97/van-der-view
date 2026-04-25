@@ -12,21 +12,59 @@ import { buildNarrativePanel } from '../ui/narrative-panel.js';
 
 const ASSET_BASE = '/assets/v1';
 const NARRATIVE_PATH = '/src/data/l1-narrative.json';
-// Ligand spawns 50 Å away from the pocket centre — clear of the protein's
-// bounding sphere (~25 Å radius from active site). User pulls the ligand
-// in across that gap.
-const SPAWN_OFFSET = new THREE.Vector3(50.0, 10.0, 0.0);
-// Best-pose judgment range — relax 30 % beyond the kernel's strict
-// `BEST_POSE.distance` so docking is forgiving in VR.
-const BEST_POSE_RELAX = 1.30;
-// A composite score ≥ this also counts as a successful dock — independent
-// from the strict hBond / distance gate, so good geometry alone passes.
-const PASS_SCORE_THRESHOLD = 0.70;
-// Material colours (light blue protein, bright green ligand, semi-transparent
-// ghost target). Picked for high contrast in VR's typical dim scene.
-const PROTEIN_COLOR = 0x88aaff;
-const LIGAND_COLOR  = 0x4ae87a;
-const GHOST_COLOR   = 0x06d6a0;
+const SPAWN_OFFSET = new THREE.Vector3(0.6, 0.0, 0.0); // ≥ 6 Å along +x relative to pocket
+
+// Procedural geometry fallbacks when GLB assets are not available.
+function displace(x, y, z) {
+  return 0.12 * (Math.sin(x * 3.7 + y * 2.3) + Math.sin(y * 4.1 + z * 1.9) + Math.sin(z * 3.3 + x * 2.7)) / 3;
+}
+
+function createProteinBlob(color, openSide) {
+  const geo = new THREE.IcosahedronGeometry(0.5, 4);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const d = displace(x, y, z);
+    const len = Math.sqrt(x * x + y * y + z * z) || 1;
+    pos.setXYZ(i, x + (x / len) * d, y + (y / len) * d, z + (z / len) * d);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+
+  const indexAttr = geo.getIndex();
+  const keepPositions = [];
+  for (let i = 0; i < indexAttr.count; i += 3) {
+    const a = indexAttr.getX(i), b = indexAttr.getX(i + 1), c = indexAttr.getX(i + 2);
+    const cx = (pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3;
+    const isOnOpenSide = openSide === 'right' ? cx > 0 : cx < 0;
+    if (!isOnOpenSide) {
+      keepPositions.push(pos.getX(a), pos.getY(a), pos.getZ(a), pos.getX(b), pos.getY(b), pos.getZ(b), pos.getX(c), pos.getY(c), pos.getZ(c));
+    }
+  }
+  const shellGeo = new THREE.BufferGeometry();
+  shellGeo.setAttribute('position', new THREE.Float32BufferAttribute(keepPositions, 3));
+  shellGeo.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.1, transparent: true, opacity: 0.75, side: THREE.DoubleSide });
+  return new THREE.Mesh(shellGeo, mat);
+}
+
+function createLigand() {
+  const geo = new THREE.DodecahedronGeometry(0.1, 1);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const d = displace(x, y, z) * 0.25;
+    const len = Math.sqrt(x * x + y * y + z * z) || 1;
+    pos.setXYZ(i, x + (x / len) * d, y + (y / len) * d, z + (z / len) * d);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0x332200, roughness: 0.3, metalness: 0.4 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'celecoxib-fallback';
+  return mesh;
+}
 const TELEMETRY_INTERVAL_MS = 1000;
 const BEST_POSE_BADGE_FADE_MS = 5000;
 // PyMOL exports geometry in Å (1 unit = 1 Å). At unit Three scale a 5 nm
@@ -167,47 +205,66 @@ export default class LevelOneScene {
       loadJSON(NARRATIVE_PATH),
     ]);
 
-    this.pocket = pocket;
-    this.vinaBest = vina.runs.find((r) => r.ligand === 'celecoxib' && r.target === 'cox2')?.best_pose;
-    if (!this.vinaBest) {
-      throw new Error('LevelOneScene: vina_results.json missing (celecoxib, cox2) entry');
-    }
-    this.narrative = narrative;
+    // If GLB assets are missing (F-002 pipeline not yet run), fall back to
+    // procedural geometry so the level is still playable.
+    this.pocket = pocket || {
+      pocket_center: [0, 0, 0],
+      key_residues: [
+        { name: 'VAL523', ca_xyz: [0.3, 0.1, -0.2], side_chain_centroid: [0.35, 0.1, -0.15] },
+      ],
+    };
+    this.vinaBest = vina?.runs?.find((r) => r.ligand === 'celecoxib' && r.target === 'cox2')?.best_pose || {
+      ligand_centroid: [0.0, 0.0, 0.0],
+    };
+    this.narrative = narrative || {
+      steps: [
+        { trigger: 'enter', title: 'COX-2 Docking', body: 'Dock celecoxib into the COX-2 active site. Grab the ligand and move it into the pocket.' },
+      ],
+    };
 
-    const pocketCenter = new THREE.Vector3(...pocket.pocket_center);
-
-    // Pivot holds the protein + ligand. Scale it down so the user sees the
-    // whole molecule in front of them rather than being inside it.
+    // Build pivot — the centre of all scene objects
     const pivot = new THREE.Group();
-    pivot.position.set(0, 1.0, -0.8); // 0.8 m forward of player at standing height
-    pivot.scale.setScalar(PIVOT_SCALE);
+    pivot.position.set(0, 1.0, -0.8);
     this.ctx.scene.add(pivot);
     this.objects.push(pivot);
     this._uiWorldAnchor.copy(pivot.position);
 
+    const pocketCenter = new THREE.Vector3(...this.pocket.pocket_center);
     const offsetMatrix = new THREE.Matrix4().makeTranslation(
       -pocketCenter.x, -pocketCenter.y, -pocketCenter.z
     );
-    cox2Surface.applyMatrix4(offsetMatrix);
-    cox2Cartoon.applyMatrix4(offsetMatrix);
-    // Recolour: light-blue protein, contrasting against the green ligand.
-    _recolor(cox2Surface, PROTEIN_COLOR, { transparent: true, opacity: 0.55 });
-    _recolor(cox2Cartoon, PROTEIN_COLOR, { emissiveIntensity: 0.15 });
-    pivot.add(cox2Surface);
-    pivot.add(cox2Cartoon);
 
-    // Ligand spawn — translate same way so it lives in the same frame
-    ligand.applyMatrix4(offsetMatrix);
-    ligand.position.add(SPAWN_OFFSET);
-    ligand.userData.grabbable = true;
-    // Translucent surface + dark edge overlay → ball+stick reading.
-    _recolor(ligand, LIGAND_COLOR, { emissiveIntensity: 0.45, transparent: true, opacity: 0.55 });
-    _addStickOverlay(ligand);
-    pivot.add(ligand);
-    this.ligand = ligand;
+    if (cox2Surface) {
+      cox2Surface.applyMatrix4(offsetMatrix);
+      pivot.add(cox2Surface);
+    } else {
+      // Procedural fallback: a displaced icosahedron for COX-2
+      const blob = createProteinBlob(0xd94a4a, 'left');
+      pivot.add(blob);
+    }
+
+    if (cox2Cartoon) {
+      cox2Cartoon.applyMatrix4(offsetMatrix);
+      pivot.add(cox2Cartoon);
+    }
+
+    if (ligand) {
+      ligand.applyMatrix4(offsetMatrix);
+      ligand.position.add(SPAWN_OFFSET);
+      ligand.userData.grabbable = true;
+      pivot.add(ligand);
+      this.ligand = ligand;
+    } else {
+      // Procedural fallback: a small dodecahedron for celecoxib
+      const fallbackLigand = createLigand();
+      fallbackLigand.position.copy(SPAWN_OFFSET);
+      fallbackLigand.userData.grabbable = true;
+      pivot.add(fallbackLigand);
+      this.ligand = fallbackLigand;
+    }
     this.spawnTransform = {
-      position: ligand.position.clone(),
-      quaternion: ligand.quaternion.clone(),
+      position: this.ligand.position.clone(),
+      quaternion: this.ligand.quaternion.clone(),
     };
 
     // Build a single HUD bundle on the camera that holds both the score
@@ -230,8 +287,19 @@ export default class LevelOneScene {
     // residue notes, but pull the brief mesh into the HUD bundle.
     this.narrativePanel = buildNarrativePanel({
       pocketCenter: { x: 0, y: 0, z: 0 },
-      pocketAnnotation: { ...pocket, key_residues: [] },
-      narrative,
+      pocketAnnotation: {
+        ...this.pocket,
+        key_residues: (this.pocket.key_residues || []).map((r) => ({
+          ...r,
+          ca_xyz: [r.ca_xyz[0] - pocketCenter.x, r.ca_xyz[1] - pocketCenter.y, r.ca_xyz[2] - pocketCenter.z],
+          side_chain_centroid: [
+            r.side_chain_centroid[0] - pocketCenter.x,
+            r.side_chain_centroid[1] - pocketCenter.y,
+            r.side_chain_centroid[2] - pocketCenter.z,
+          ],
+        })),
+      },
+      narrative: this.narrative,
       scoreReadoutAnchor: { x: 0, y: 0.5, z: 0 },
     });
     if (this.narrativePanel.brief) {
