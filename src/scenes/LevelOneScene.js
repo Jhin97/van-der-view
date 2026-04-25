@@ -646,6 +646,20 @@ export default class LevelOneScene {
 
   destroy() {
     if (this._completeTimer) { clearTimeout(this._completeTimer); this._completeTimer = null; }
+    // The grabbable ligand may have been trigger-grabbed at scene end —
+    // in that case `controller.attach(ligand)` reparented it onto the
+    // (persistent) controller node, NOT pivot, so pivot disposal won't
+    // clean it up and the mesh persists into the next scene.
+    if (this.ligand && this.ligand.parent) {
+      this.ligand.parent.remove(this.ligand);
+      this.ligand.traverse?.((c) => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+          else c.material.dispose();
+        }
+      });
+    }
     // HUD bundle (score readout + brief + success card) is parented to the
     // camera, not the scene — explicit detach so it doesn't survive into
     // the next scene.
