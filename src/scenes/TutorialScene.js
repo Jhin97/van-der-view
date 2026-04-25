@@ -61,6 +61,9 @@ export default class TutorialScene {
     this._buildArrow();
     this._buildFloorDecor();
     this._enterState(STATES.INTRO);
+    // Spawn ~1m from the pocket (which sits at z=-0.6) so the user can
+    // interact without walking.
+    this.spawn = { player: [0, 0, 0], camera: [0, 1.6, 0.4] };
   }
 
   update(dt, controllers) {
@@ -154,13 +157,15 @@ export default class TutorialScene {
     const center = new THREE.Mesh(cGeo, cMat);
     group.add(center);
 
-    // 3 arms pointing in the same directions as the pocket markers
-    const armLength = 0.10;
+    // Arm-tip geometry must coincide with the H-bond marker positions in
+    // _buildPocket when the ligand is centered + aligned, otherwise the
+    // alignment-completion check (SNAP_DIST + ALIGN_THRESHOLD) is unreachable.
+    const yOff = POCKET_RADIUS * 0.35;
+    const rAtY = Math.sqrt(Math.max(0.001, POCKET_RADIUS * POCKET_RADIUS - yOff * yOff)) * 0.8;
+    const armLength = Math.sqrt(rAtY * rAtY + yOff * yOff);
     const armPositions = []; // local offsets for the arm tips
     for (let i = 0; i < 3; i++) {
       const angle = (i / 3) * Math.PI * 2 - Math.PI / 2;
-      const yOff = 0.035;
-      const rAtY = 0.08;
       const dx = Math.cos(angle) * rAtY;
       const dy = yOff;
       const dz = Math.sin(angle) * rAtY;

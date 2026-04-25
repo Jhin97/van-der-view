@@ -153,6 +153,14 @@ function loadScene(sceneIdOrClass) {
 
   grabbables = activeScene.getGrabbables();
   if (activeScene.enableSkipShortcut) activeScene.enableSkipShortcut();
+
+  // Apply the scene's preferred spawn (player room-origin + desktop camera).
+  // VR overrides camera each frame from headset pose, so player.position is
+  // what positions the user in world; camera.position only matters in 2D.
+  if (activeScene.spawn) {
+    if (activeScene.spawn.player) player.position.fromArray(activeScene.spawn.player);
+    if (activeScene.spawn.camera) camera.position.fromArray(activeScene.spawn.camera);
+  }
 }
 
 function transitionToScene(sceneId) {
@@ -173,9 +181,6 @@ function transitionToHub() {
   _fadeOut(300).then(() => {
     loadScene(GameHubScene);
     _syncHubProgress();
-    // Reset player to hub entry point
-    player.position.set(0, 0, 0);
-    camera.position.set(0, 1.6, 3);
     renderer.render(scene, camera);
     _fadeIn(300).then(() => {
       transitioning = false;
