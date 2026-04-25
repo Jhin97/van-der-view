@@ -4,6 +4,8 @@ import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFa
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import { PRE_QUESTIONS, POST_QUESTIONS } from './survey-questions.js';
 import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from './survey-ui.js';
+import { initL3Scene, updateL3Scene } from './l3-scenario.js';
+import { showSelectivityHUD, hideSelectivityHUD, showCutscene, showWrapCard } from './narrative-ui.js';
 
 // --- Session ID (persists across pre/post for this page load) ---------------
 const sessionId = crypto.randomUUID();
@@ -53,22 +55,6 @@ scene.add(floor);
 const grid = new THREE.GridHelper(16, 32, 0x444466, 0x222233);
 scene.add(grid);
 
-const grabbables = [];
-const palette = [0x3aa6ff, 0xff6f91, 0xffd166, 0x06d6a0, 0xc77dff];
-// Deterministic layout so every client (Quest + PC spectator) starts identical.
-for (let i = 0; i < 5; i++) {
-  const size = 0.14;
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(size, size, size),
-    new THREE.MeshStandardMaterial({ color: palette[i], roughness: 0.4, metalness: 0.2 })
-  );
-  const angle = (i / 5) * Math.PI * 2;
-  mesh.position.set(Math.cos(angle) * 0.6, 1.2, -0.8 + Math.sin(angle) * 0.6);
-  mesh.userData.grabbable = true;
-  scene.add(mesh);
-  grabbables.push(mesh);
-}
-
 const player = new THREE.Group();
 player.add(camera);
 scene.add(player);
@@ -77,13 +63,6 @@ const controllerModelFactory = new XRControllerModelFactory();
 const handModelFactory = new XRHandModelFactory();
 
 const tempMatrix = new THREE.Matrix4();
-const raycaster = new THREE.Raycaster();
-const teleportMarker = new THREE.Mesh(
-  new THREE.RingGeometry(0.18, 0.22, 32).rotateX(-Math.PI / 2),
-  new THREE.MeshBasicMaterial({ color: 0x06d6a0, transparent: true, opacity: 0.85 })
-);
-teleportMarker.visible = false;
-scene.add(teleportMarker);
 
 function buildController(index) {
   const controller = renderer.xr.getController(index);
@@ -106,8 +85,6 @@ function buildController(index) {
   line.scale.z = 5;
   controller.add(line);
 
-  controller.addEventListener('selectstart', () => onSelectStart(controller));
-  controller.addEventListener('selectend', () => onSelectEnd(controller));
   controller.addEventListener('squeezestart', () => { controller.userData.teleporting = true; });
   controller.addEventListener('squeezeend', () => {
     controller.userData.teleporting = false;
@@ -122,27 +99,16 @@ function buildController(index) {
   return controller;
 }
 
-function onSelectStart(controller) {
-  tempMatrix.identity().extractRotation(controller.matrixWorld);
-  raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-  raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-  const hits = raycaster.intersectObjects(grabbables, false);
-  if (hits.length > 0) {
-    const obj = hits[0].object;
-    controller.attach(obj);
-    controller.userData.held = obj;
-  }
-}
-
-function onSelectEnd(controller) {
-  if (controller.userData.held) {
-    scene.attach(controller.userData.held);
-    controller.userData.held = null;
-  }
-}
-
 const controller0 = buildController(0);
 const controller1 = buildController(1);
+
+const raycaster = new THREE.Raycaster();
+const teleportMarker = new THREE.Mesh(
+  new THREE.RingGeometry(0.18, 0.22, 32).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0x06d6a0, transparent: true, opacity: 0.85 })
+);
+teleportMarker.visible = false;
+scene.add(teleportMarker);
 
 function updateTeleport(controller) {
   if (!controller.userData.teleporting) return;
@@ -184,9 +150,6 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-let last = performance.now();
-let frames = 0;
-let fps = 0;
 let animating = false;
 
 renderer.setAnimationLoop((time) => {
@@ -195,14 +158,8 @@ renderer.setAnimationLoop((time) => {
   updateTeleport(controller0);
   updateTeleport(controller1);
   handleThumbstickTeleport();
-  broadcastHeldTransforms();
+  updateL3Scene(time);
 
-  frames++;
-  if (time - last > 1000) {
-    fps = frames;
-    frames = 0;
-    last = time;
-  }
   renderer.render(scene, camera);
 });
 
@@ -217,49 +174,8 @@ let wsReady = false;
 ws.addEventListener('open', () => { wsReady = true; console.log('[sync] connected'); });
 ws.addEventListener('close', () => { wsReady = false; console.warn('[sync] disconnected'); });
 
-const _p = new THREE.Vector3();
-const _q = new THREE.Quaternion();
-
-function localHeldCube(cube) {
-  return controller0.userData.held === cube || controller1.userData.held === cube;
-}
-
-ws.addEventListener('message', (e) => {
-  let msg;
-  try { msg = JSON.parse(e.data); } catch { return; }
-  if (msg.type !== 'cube') return;
-  const cube = grabbables[msg.id];
-  if (!cube) return;
-  if (localHeldCube(cube)) return;
-  if (cube.parent !== scene) scene.attach(cube);
-  cube.position.fromArray(msg.p);
-  cube.quaternion.fromArray(msg.q);
-});
-
-function broadcastHeldTransforms() {
-  if (!wsReady) return;
-  for (const ctrl of [controller0, controller1]) {
-    const cube = ctrl.userData.held;
-    if (!cube) continue;
-    cube.getWorldPosition(_p);
-    cube.getWorldQuaternion(_q);
-    ws.send(JSON.stringify({
-      type: 'cube',
-      id: grabbables.indexOf(cube),
-      p: [_p.x, _p.y, _p.z],
-      q: [_q.x, _q.y, _q.z, _q.w],
-    }));
-  }
-}
-
-for (const ctrl of [controller0, controller1]) {
-  ctrl.addEventListener('selectend', () => {
-    if (!wsReady) return;
-  });
-}
-
 // Debug surface
-window.__VDV = { grabbables, ws, scene, renderer };
+window.__VDV = { ws, scene, renderer };
 
 // --- Survey flow -----------------------------------------------------------
 async function runPreSurvey() {
@@ -287,9 +203,19 @@ async function runPostSurvey() {
 
 function startExperience() {
   animating = true;
-  // Render one frame immediately so the scene is visible
   renderer.render(scene, camera);
-  createFinishButton(() => runPostSurvey());
+
+  // Build the L3 dual-pocket scene
+  initL3Scene(scene);
+  showSelectivityHUD();
+
+  // After a viewing period, trigger the narrative flow
+  setTimeout(async () => {
+    hideSelectivityHUD();
+    await showCutscene();
+    await showWrapCard();
+    createFinishButton(() => runPostSurvey());
+  }, 5000);
 }
 
 // --- Boot: pre-survey blocks the experience until completed ----------------
