@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
+import TutorialScene from './scenes/TutorialScene.js';
 import { PRE_QUESTIONS, POST_QUESTIONS } from './survey-questions.js';
 import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from './survey-ui.js';
 
@@ -39,6 +40,8 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 
+// ---- Lighting & environment -----------------------------------------------
+
 scene.add(new THREE.HemisphereLight(0xbcd6ff, 0x1a1a2e, 0.7));
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
 keyLight.position.set(3, 6, 2);
@@ -53,21 +56,7 @@ scene.add(floor);
 const grid = new THREE.GridHelper(16, 32, 0x444466, 0x222233);
 scene.add(grid);
 
-const grabbables = [];
-const palette = [0x3aa6ff, 0xff6f91, 0xffd166, 0x06d6a0, 0xc77dff];
-// Deterministic layout so every client (Quest + PC spectator) starts identical.
-for (let i = 0; i < 5; i++) {
-  const size = 0.14;
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(size, size, size),
-    new THREE.MeshStandardMaterial({ color: palette[i], roughness: 0.4, metalness: 0.2 })
-  );
-  const angle = (i / 5) * Math.PI * 2;
-  mesh.position.set(Math.cos(angle) * 0.6, 1.2, -0.8 + Math.sin(angle) * 0.6);
-  mesh.userData.grabbable = true;
-  scene.add(mesh);
-  grabbables.push(mesh);
-}
+// ---- Player & XR controllers ----------------------------------------------
 
 const player = new THREE.Group();
 player.add(camera);
@@ -84,6 +73,11 @@ const teleportMarker = new THREE.Mesh(
 );
 teleportMarker.visible = false;
 scene.add(teleportMarker);
+
+// Active scene state
+let activeScene = null;
+let grabbables = [];
+let animating = false;
 
 function buildController(index) {
   const controller = renderer.xr.getController(index);
@@ -126,11 +120,17 @@ function onSelectStart(controller) {
   tempMatrix.identity().extractRotation(controller.matrixWorld);
   raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
   raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-  const hits = raycaster.intersectObjects(grabbables, false);
+
+  const hits = raycaster.intersectObjects(grabbables, true);
   if (hits.length > 0) {
-    const obj = hits[0].object;
-    controller.attach(obj);
-    controller.userData.held = obj;
+    let obj = hits[0].object;
+    while (obj.parent && !obj.userData.grabbable) {
+      obj = obj.parent;
+    }
+    if (obj.userData.grabbable) {
+      controller.attach(obj);
+      controller.userData.held = obj;
+    }
   }
 }
 
@@ -178,31 +178,120 @@ function handleThumbstickTeleport() {
   }
 }
 
+// ---- Scene manager --------------------------------------------------------
+
+function loadScene(SceneClass) {
+  if (activeScene) activeScene.destroy();
+  activeScene = new SceneClass({ scene, player, renderer });
+  activeScene.init();
+  grabbables = activeScene.getGrabbables();
+  if (activeScene.enableSkipShortcut) activeScene.enableSkipShortcut();
+}
+
+// ---- Keyboard fallback for 2D testing -------------------------------------
+
+const keys = {};
+window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+function handleDesktopFallback(dt) {
+  if (renderer.xr.isPresenting) return;
+  const speed = 0.003 * dt;
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  forward.y = 0; forward.normalize();
+  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
+  if (keys['KeyW']) player.position.addScaledVector(forward, speed);
+  if (keys['KeyS']) player.position.addScaledVector(forward, -speed);
+  if (keys['KeyD']) player.position.addScaledVector(right, speed);
+  if (keys['KeyA']) player.position.addScaledVector(right, -speed);
+
+  if (keys['MouseLook']) {
+    camera.rotation.y -= keys._mouseDX * 0.003;
+    camera.rotation.x -= keys._mouseDY * 0.003;
+    camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+    keys._mouseDX = 0;
+    keys._mouseDY = 0;
+  }
+}
+
+// Mouse-based grab for desktop testing
+let desktopHeld = null;
+renderer.domElement.addEventListener('mousedown', (e) => {
+  if (renderer.xr.isPresenting) return;
+  if (e.button === 2) { keys['MouseLook'] = true; keys._mouseDX = 0; keys._mouseDY = 0; return; }
+  if (e.button !== 0) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+    -((e.clientY - rect.top) / rect.height) * 2 + 1,
+  );
+  const rc = new THREE.Raycaster();
+  rc.setFromCamera(mouse, camera);
+  const hits = rc.intersectObjects(grabbables, true);
+  if (hits.length > 0) {
+    let obj = hits[0].object;
+    while (obj.parent && !obj.userData.grabbable) obj = obj.parent;
+    if (obj.userData.grabbable) {
+      desktopHeld = obj;
+      desktopHeld._dragOffset = obj.position.clone().sub(camera.position);
+    }
+  }
+});
+
+renderer.domElement.addEventListener('mousemove', (e) => {
+  if (keys['MouseLook']) {
+    keys._mouseDX = (keys._mouseDX || 0) + e.movementX;
+    keys._mouseDY = (keys._mouseDY || 0) + e.movementY;
+  }
+  if (desktopHeld && !renderer.xr.isPresenting) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const rc = new THREE.Raycaster();
+    rc.setFromCamera(mouse, camera);
+    const dist = camera.position.distanceTo(desktopHeld.position);
+    const target = rc.ray.at(dist, new THREE.Vector3());
+    desktopHeld.position.lerp(target, 0.3);
+  }
+});
+
+renderer.domElement.addEventListener('mouseup', (e) => {
+  if (e.button === 2) { keys['MouseLook'] = false; return; }
+  desktopHeld = null;
+});
+
+renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// ---- Resize ---------------------------------------------------------------
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-let last = performance.now();
-let frames = 0;
-let fps = 0;
-let animating = false;
+// ---- Main loop ------------------------------------------------------------
 
+let lastTime = 0;
 renderer.setAnimationLoop((time) => {
   if (!animating) return;
+
+  const dt = lastTime ? time - lastTime : 16;
+  lastTime = time;
 
   updateTeleport(controller0);
   updateTeleport(controller1);
   handleThumbstickTeleport();
-  broadcastHeldTransforms();
+  handleDesktopFallback(dt);
 
-  frames++;
-  if (time - last > 1000) {
-    fps = frames;
-    frames = 0;
-    last = time;
+  if (activeScene) {
+    activeScene.update(dt, [controller0, controller1]);
+    grabbables = activeScene.getGrabbables();
   }
+
   renderer.render(scene, camera);
 });
 
@@ -210,58 +299,11 @@ if (!('xr' in navigator)) {
   console.warn('WebXR not available in this browser. The scene still renders in 2D.');
 }
 
-// --- Cross-client sync (Quest ↔ PC spectator) -----------------------------
-const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
-const ws = new WebSocket(`${wsProto}://${location.host}/sync`);
-let wsReady = false;
-ws.addEventListener('open', () => { wsReady = true; console.log('[sync] connected'); });
-ws.addEventListener('close', () => { wsReady = false; console.warn('[sync] disconnected'); });
-
-const _p = new THREE.Vector3();
-const _q = new THREE.Quaternion();
-
-function localHeldCube(cube) {
-  return controller0.userData.held === cube || controller1.userData.held === cube;
-}
-
-ws.addEventListener('message', (e) => {
-  let msg;
-  try { msg = JSON.parse(e.data); } catch { return; }
-  if (msg.type !== 'cube') return;
-  const cube = grabbables[msg.id];
-  if (!cube) return;
-  if (localHeldCube(cube)) return;
-  if (cube.parent !== scene) scene.attach(cube);
-  cube.position.fromArray(msg.p);
-  cube.quaternion.fromArray(msg.q);
-});
-
-function broadcastHeldTransforms() {
-  if (!wsReady) return;
-  for (const ctrl of [controller0, controller1]) {
-    const cube = ctrl.userData.held;
-    if (!cube) continue;
-    cube.getWorldPosition(_p);
-    cube.getWorldQuaternion(_q);
-    ws.send(JSON.stringify({
-      type: 'cube',
-      id: grabbables.indexOf(cube),
-      p: [_p.x, _p.y, _p.z],
-      q: [_q.x, _q.y, _q.z, _q.w],
-    }));
-  }
-}
-
-for (const ctrl of [controller0, controller1]) {
-  ctrl.addEventListener('selectend', () => {
-    if (!wsReady) return;
-  });
-}
-
 // Debug surface
-window.__VDV = { grabbables, ws, scene, renderer };
+window.__VDV = { scene, renderer, camera, player };
 
-// --- Survey flow -----------------------------------------------------------
+// ---- Survey flow ----------------------------------------------------------
+
 async function runPreSurvey() {
   const responses = await showSurvey(
     PRE_QUESTIONS,
@@ -287,11 +329,11 @@ async function runPostSurvey() {
 
 function startExperience() {
   animating = true;
-  // Render one frame immediately so the scene is visible
+  loadScene(TutorialScene);
   renderer.render(scene, camera);
   createFinishButton(() => runPostSurvey());
 }
 
-// --- Boot: pre-survey blocks the experience until completed ----------------
-console.log('van-der-view F-001 scaffold loaded. WebXR ready:', 'xr' in navigator);
+// ---- Boot: pre-survey → tutorial → finish → post-survey -------------------
+console.log('van-der-view F-003 tutorial loaded. WebXR ready:', 'xr' in navigator);
 runPreSurvey();
