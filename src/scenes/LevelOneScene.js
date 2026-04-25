@@ -12,7 +12,14 @@ import { buildNarrativePanel } from '../ui/narrative-panel.js';
 
 const ASSET_BASE = '/assets/v1';
 const NARRATIVE_PATH = '/src/data/l1-narrative.json';
-const SPAWN_OFFSET = new THREE.Vector3(0.6, 0.0, 0.0); // ≥ 6 Å along +x relative to pocket
+// Ligand spawns 15 Å away from pocket — far enough that it doesn't overlap
+// the protein at start, close enough that the user can drag it in.
+const SPAWN_OFFSET = new THREE.Vector3(15.0, 4.0, 0.0);
+// Material colours (light blue protein, bright green ligand, semi-transparent
+// ghost target). Picked for high contrast in VR's typical dim scene.
+const PROTEIN_COLOR = 0x88aaff;
+const LIGAND_COLOR  = 0x4ae87a;
+const GHOST_COLOR   = 0x06d6a0;
 const TELEMETRY_INTERVAL_MS = 1000;
 const BEST_POSE_BADGE_FADE_MS = 5000;
 // PyMOL exports geometry in Å (1 unit = 1 Å). At unit Three scale a 5 nm
@@ -44,6 +51,29 @@ function _amplifyQuat(delta, gain) {
   const newHalf = halfAngle * gain;
   const sinNew = Math.sin(newHalf);
   return new THREE.Quaternion(ax * sinNew, ay * sinNew, az * sinNew, Math.cos(newHalf));
+}
+
+// Recolour every material on a loaded GLB subtree. Materials are cloned so
+// shared assets (e.g. ghost ligand later cloning the real ligand) keep
+// independent overrides.
+function _recolor(root, hex, opts = {}) {
+  const { emissiveIntensity = 0.0, transparent = false, opacity = 1.0 } = opts;
+  root.traverse((c) => {
+    if (!c.material) return;
+    const list = Array.isArray(c.material) ? c.material : [c.material];
+    const cloned = list.map((m) => {
+      const cm = m.clone();
+      if (cm.color) cm.color.setHex(hex);
+      if (cm.emissive) {
+        cm.emissive.setHex(hex);
+        cm.emissiveIntensity = emissiveIntensity;
+      }
+      cm.transparent = transparent || cm.transparent;
+      if (transparent) cm.opacity = opacity;
+      return cm;
+    });
+    c.material = Array.isArray(c.material) ? cloned : cloned[0];
+  });
 }
 
 async function postTelemetry(events) {
@@ -126,6 +156,9 @@ export default class LevelOneScene {
     );
     cox2Surface.applyMatrix4(offsetMatrix);
     cox2Cartoon.applyMatrix4(offsetMatrix);
+    // Recolour: light-blue protein, contrasting against the green ligand.
+    _recolor(cox2Surface, PROTEIN_COLOR, { transparent: true, opacity: 0.55 });
+    _recolor(cox2Cartoon, PROTEIN_COLOR, { emissiveIntensity: 0.15 });
     pivot.add(cox2Surface);
     pivot.add(cox2Cartoon);
 
@@ -133,6 +166,7 @@ export default class LevelOneScene {
     ligand.applyMatrix4(offsetMatrix);
     ligand.position.add(SPAWN_OFFSET);
     ligand.userData.grabbable = true;
+    _recolor(ligand, LIGAND_COLOR, { emissiveIntensity: 0.45 });
     pivot.add(ligand);
     this.ligand = ligand;
     this.spawnTransform = {
@@ -140,28 +174,36 @@ export default class LevelOneScene {
       quaternion: ligand.quaternion.clone(),
     };
 
-    // Score readout — head-locked HUD, child of camera so it stays in the
-    // top-left of the user's view regardless of model translation /
-    // rotation / scale. (User asked: "scoring 表格固定在屏幕的左上角不
-    // 要让它参与模型移动等操作".)
+    // Build a single HUD bundle on the camera that holds both the score
+    // readout and the dismissible task brief — so they sit together in
+    // the user's view rather than the brief floating in front of the
+    // protein. (User: "描述框不要嵌入和模型本身，和分数看板放在一起".)
+    this.hud = new THREE.Group();
+    this.hud.position.set(-0.45, 0.05, -1.2);
+    this.ctx.camera.add(this.hud);
+
     this.readout = buildReadout({
       pocketCenter: { x: 0, y: 0, z: 0 },
       camera: null,
     });
-    this.readout.group.position.set(-0.45, 0.30, -1.2);
+    this.readout.group.position.set(0, 0.22, 0);
     this.readout.group.scale.setScalar(0.7);
-    this.ctx.camera.add(this.readout.group);
-    // Not pushed to `this.objects` — destroy handles HUD detach explicitly.
+    this.hud.add(this.readout.group);
 
-    // Narrative panel — also world-locked. Skip residue side-notes for now;
-    // attaching them in pivot-local frame would also shrink them, and the
-    // task brief is the critical onboarding text.
+    // Narrative — keep `group` at scene root for any future world-locked
+    // residue notes, but pull the brief mesh into the HUD bundle.
     this.narrativePanel = buildNarrativePanel({
       pocketCenter: { x: 0, y: 0, z: 0 },
       pocketAnnotation: { ...pocket, key_residues: [] },
       narrative,
       scoreReadoutAnchor: { x: 0, y: 0.5, z: 0 },
     });
+    if (this.narrativePanel.brief) {
+      this.narrativePanel.group.remove(this.narrativePanel.brief);
+      this.narrativePanel.brief.position.set(0, -0.20, 0);
+      this.narrativePanel.brief.scale.setScalar(0.42);
+      this.hud.add(this.narrativePanel.brief);
+    }
     this.narrativePanel.group.position.copy(this._uiWorldAnchor);
     this.ctx.scene.add(this.narrativePanel.group);
     this.objects.push(this.narrativePanel.group);
@@ -171,6 +213,9 @@ export default class LevelOneScene {
     // the user *where* in the protein to place the ligand. Lives inside
     // the pivot so it scales / translates / rotates with the protein.
     this._buildTargetGhost(ligand, pocketCenter, pivot);
+
+    // Pre-build the dock-success card; shown when bestPoseFired transitions.
+    this._buildSuccessCard();
 
     this.pivot = pivot;
     // Spawn even farther so the user starts with a full view of the protein.
@@ -272,6 +317,7 @@ export default class LevelOneScene {
       this.bestPoseFired = true;
       this.bestPoseFireTime = this.dtSinceInit;
       this.readout.showBadge();
+      this._showSuccessCard(result.total);
       postTelemetry([
         {
           session_id: window.__VDV_SESSION_ID || 'anon',
@@ -381,6 +427,12 @@ export default class LevelOneScene {
           Math.min(PIVOT_SCALE_MAX, s.pivotScaleStart * ratio),
         );
         this.pivot.scale.setScalar(newScale);
+        // If the ligand is currently held by a controller (i.e. parented
+        // away from `pivot`), it doesn't inherit pivot.scale anymore. Match
+        // its world size to the protein so they bimanual-zoom together.
+        if (this.ligand && this.ligand.parent && this.ligand.parent !== this.pivot) {
+          this.ligand.scale.setScalar(newScale);
+        }
         const midDelta = currentMid.clone().sub(s.bimanualMidStart);
         this.pivot.position.copy(s.pivotPosStart).add(midDelta);
         this._syncUiAnchor();
@@ -395,31 +447,20 @@ export default class LevelOneScene {
     const ghost = ligand.clone(true);
     ghost.traverse((c) => {
       if (!c.material) return;
-      // Materials must be cloned so we don't bleed our overrides into the
-      // grabbable real ligand.
-      c.material = Array.isArray(c.material)
-        ? c.material.map((m) => {
-            const cm = m.clone();
-            cm.transparent = true;
-            cm.opacity = 0.30;
-            cm.depthWrite = false;
-            if (cm.emissive) {
-              cm.emissive.setHex(0x06d6a0);
-              cm.emissiveIntensity = 0.7;
-            }
-            return cm;
-          })
-        : (() => {
-            const cm = c.material.clone();
-            cm.transparent = true;
-            cm.opacity = 0.30;
-            cm.depthWrite = false;
-            if (cm.emissive) {
-              cm.emissive.setHex(0x06d6a0);
-              cm.emissiveIntensity = 0.7;
-            }
-            return cm;
-          })();
+      const list = Array.isArray(c.material) ? c.material : [c.material];
+      const cloned = list.map((m) => {
+        const cm = m.clone();
+        cm.transparent = true;
+        cm.opacity = 0.45;
+        cm.depthWrite = false;
+        if (cm.color) cm.color.setHex(GHOST_COLOR);
+        if (cm.emissive) {
+          cm.emissive.setHex(GHOST_COLOR);
+          cm.emissiveIntensity = 1.4;
+        }
+        return cm;
+      });
+      c.material = Array.isArray(c.material) ? cloned : cloned[0];
     });
     ghost.position.set(
       this.vinaBest.ligand_centroid[0] - pocketCenter.x,
@@ -429,6 +470,79 @@ export default class LevelOneScene {
     ghost.userData.grabbable = false;
     pivot.add(ghost);
     this.targetGhost = ghost;
+  }
+
+  _buildSuccessCard() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(6, 214, 160, 0.95)';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, 1024, 512, 36);
+    ctx.fill();
+    ctx.fillStyle = '#0a2e22';
+    ctx.font = 'bold 110px ui-sans-serif, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('PERFECT DOCK!', 512, 200);
+    ctx.font = 'bold 56px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillText('COX-2 + celecoxib', 512, 320);
+    ctx.font = '40px ui-sans-serif, system-ui, sans-serif';
+    this._successCardCanvas = canvas;
+    this._successCardCtx = ctx;
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthTest: false });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.45), mat);
+    mesh.position.set(0, 0, -1.4);
+    mesh.visible = false;
+    mesh.renderOrder = 999;
+    this.ctx.camera.add(mesh);
+    this.successCard = mesh;
+  }
+
+  _showSuccessCard(scoreTotal) {
+    if (!this.successCard || !this._successCardCanvas) return;
+    const ctx = this._successCardCtx;
+    // Repaint with current score below the title line.
+    ctx.fillStyle = 'rgba(6, 214, 160, 0.95)';
+    ctx.beginPath();
+    ctx.roundRect(0, 360, 1024, 152, 24);
+    ctx.fill();
+    ctx.fillStyle = '#0a2e22';
+    ctx.font = 'bold 56px ui-sans-serif, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`Score: ${scoreTotal.toFixed(2)} / 1.00`, 512, 440);
+    if (this.successCard.material.map) this.successCard.material.map.needsUpdate = true;
+
+    this.successCard.visible = true;
+    const startTime = performance.now();
+    const fadeIn = 280;
+    const hold = 2400;
+    const fadeOut = 540;
+    const total = fadeIn + hold + fadeOut;
+    const animate = () => {
+      const elapsed = performance.now() - startTime;
+      let opacity;
+      if (elapsed < fadeIn) opacity = elapsed / fadeIn;
+      else if (elapsed < fadeIn + hold) opacity = 1;
+      else if (elapsed < total) opacity = 1 - (elapsed - fadeIn - hold) / fadeOut;
+      else { this.successCard.visible = false; return; }
+      this.successCard.material.opacity = opacity;
+      requestAnimationFrame(animate);
+    };
+    animate();
+
+    // Haptic burst on both controllers
+    const session = this.ctx.renderer.xr.getSession();
+    if (session) {
+      for (const src of session.inputSources) {
+        const a = src.gamepad?.hapticActuators?.[0];
+        a?.pulse(0.8, 90);
+      }
+    }
   }
 
   _syncUiAnchor() {
@@ -485,17 +599,23 @@ export default class LevelOneScene {
   }
 
   destroy() {
-    // HUD readout is parented to the camera, not the scene — explicit detach
-    // so it doesn't survive into the next scene.
-    if (this.readout?.group?.parent) {
-      this.readout.group.parent.remove(this.readout.group);
-      this.readout.group.traverse?.((c) => {
+    // HUD bundle (score readout + brief + success card) is parented to the
+    // camera, not the scene — explicit detach so it doesn't survive into
+    // the next scene.
+    if (this.hud?.parent) {
+      this.hud.parent.remove(this.hud);
+      this.hud.traverse?.((c) => {
         if (c.geometry) c.geometry.dispose();
         if (c.material) {
           if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
           else c.material.dispose();
         }
       });
+    }
+    if (this.successCard?.parent) {
+      this.successCard.parent.remove(this.successCard);
+      if (this.successCard.geometry) this.successCard.geometry.dispose();
+      if (this.successCard.material) this.successCard.material.dispose();
     }
     for (const obj of this.objects) {
       this.ctx.scene.remove(obj);
