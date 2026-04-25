@@ -1,0 +1,1 @@
+Meet celecoxib. Look at the back wall of this pocket — there is a side cavity that COX-1 does not have. One residue makes the difference: Valine 523 in COX-2, Isoleucine 523 in COX-1. A single methyl group, and the geometry opens up. Celecoxib carries a sulfonamide tail designed to slot into that side pocket. Your task: find the snap. Bring the sulfonamide home.

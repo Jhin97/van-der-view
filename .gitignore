@@ -3,3 +3,9 @@ dist
 .vite
 *.log
 .DS_Store
+
+# F-002 pipeline intermediate artifacts
+pipelines/data/
+pipelines/node_modules/
+pipelines/__pycache__/
+pipelines/.pytest_cache/
