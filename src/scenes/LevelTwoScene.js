@@ -60,6 +60,20 @@ export default class LevelTwoScene {
 
   async init() {
     this.data = await loadJSON(DATA_PATH);
+    if (!this.data) {
+      this.data = {
+        ligands: [
+          { name: 'celecoxib', color: '0x3aa6ff', vina_kcal: -10.6, rank: 1, h_bonds: 3, hydrophobic: 'high', tagline: 'Selective COX-2 inhibitor.' },
+          { name: 'rofecoxib', color: '0xff6f91', vina_kcal: -9.8, rank: 2, h_bonds: 2, hydrophobic: 'high', tagline: 'Methylsulfonyl variant.' },
+          { name: 'diclofenac', color: '0xffd166', vina_kcal: -8.5, rank: 3, h_bonds: 2, hydrophobic: 'medium', tagline: 'Non-selective NSAID.' },
+          { name: 'naproxen', color: '0x06d6a0', vina_kcal: -7.9, rank: 4, h_bonds: 1, hydrophobic: 'medium', tagline: 'Naphthyl scaffold.' },
+          { name: 'ibuprofen', color: '0xc77dff', vina_kcal: -7.4, rank: 5, h_bonds: 1, hydrophobic: 'low', tagline: 'Smallest and most flexible.' },
+        ],
+        brief: { title: 'Rank the NSAIDs', biology: 'Five NSAID analogs bind COX-2 with different affinities.', engineering: 'Trigger pedestals to reveal scores.', auto_dismiss_seconds: 12 },
+        score_hint: 'Lower ΔG = tighter binding.',
+        complete_message: 'All five ranked.',
+      };
+    }
 
     this._buildEnvironment();
     this._buildPedestals();
@@ -253,7 +267,7 @@ export default class LevelTwoScene {
       else {
         // Show value
         const tex = this._textTexture(lig.vina_kcal.toFixed(1), '#ffffff', 22);
-        valueLabel.material.map.dispose();
+        if (valueLabel.material.map) valueLabel.material.map.dispose();
         valueLabel.material.map = tex;
         valueLabel.material.needsUpdate = true;
         valueLabel.position.y = baseY + fullHeight + 0.04;

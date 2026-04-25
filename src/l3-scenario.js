@@ -6,9 +6,9 @@ export const COX2_SCORE = -10.2;
 export const SELECTIVITY_RATIO = '2.4x';
 
 // Per-frame animated objects
-const ligands = [];
-const cavityLights = [];
-const markers = [];
+let ligands = [];
+let cavityLights = [];
+let markers = [];
 
 // Deterministic sine-based displacement (no external noise lib).
 function displace(x, y, z) {
@@ -138,6 +138,11 @@ function createMarker() {
  * Build the L3 dual-pocket scene and add it to the given Three.js scene.
  */
 export function initL3Scene(scene) {
+  // Reset module-level arrays so re-init after destroy works cleanly.
+  ligands = [];
+  cavityLights = [];
+  markers = [];
+
   const l3Group = new THREE.Group();
   l3Group.name = 'L3';
 

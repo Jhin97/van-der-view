@@ -126,9 +126,14 @@ export default class LevelOneScene {
       ligand_centroid: [0.0, 0.0, 0.0],
     };
     this.narrative = narrative || {
-      steps: [
-        { trigger: 'enter', title: 'COX-2 Docking', body: 'Dock celecoxib into the COX-2 active site. Grab the ligand and move it into the pocket.' },
-      ],
+      brief: {
+        title: 'COX-2 Docking',
+        biology: 'COX-2 is an enzyme upregulated during inflammation. Blocking it achieves an anti-inflammatory effect.',
+        engineering: 'Grab the celecoxib molecule and move it into the pocket.',
+        auto_dismiss_seconds: 15,
+      },
+      residue_notes: {},
+      score_hint: 'Score = α·shape + β·H-bonds − γ·clashes.',
     };
 
     // Build pivot — the centre of all scene objects

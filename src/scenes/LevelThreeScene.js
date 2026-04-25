@@ -78,7 +78,11 @@ export default class LevelThreeScene {
       this.l3Group.traverse((c) => {
         if (c.geometry) c.geometry.dispose();
         if (c.material) {
-          if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+          if (c.material.map) c.material.map.dispose();
+          if (Array.isArray(c.material)) c.material.forEach((m) => {
+            if (m.map) m.map.dispose();
+            m.dispose();
+          });
           else c.material.dispose();
         }
       });

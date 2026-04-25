@@ -128,7 +128,10 @@ function loadScene(sceneIdOrClass) {
 
   if (activeScene) activeScene.destroy();
   activeScene = new SceneClass({ scene, player, renderer, camera });
-  activeScene.init();
+  const initResult = activeScene.init();
+  if (initResult && typeof initResult.catch === 'function') {
+    initResult.catch((err) => console.error('[scene] init failed:', err));
+  }
 
   // Wire level completion → hub return
   if (activeScene.onComplete !== undefined) {

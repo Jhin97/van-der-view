@@ -50,7 +50,7 @@ export function computeScore({
   thresholds = DEFAULT_THRESHOLDS,
 }) {
   if (!ligandCentroid || !vinaBestPose || !pocketAnnotation) {
-    throw new Error('computeScore: ligandCentroid, vinaBestPose, pocketAnnotation are required');
+    return { total: 0, components: { distance: 0, hBondHits: 0, clashes: 0 }, isBestPose: false, rawDistance: Infinity };
   }
 
   const bestCentroid = _toVec(vinaBestPose.ligand_centroid);

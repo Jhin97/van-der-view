@@ -45,11 +45,25 @@ function paintBrief(canvas, narrative) {
   ctx.fillStyle = 'rgba(8, 12, 28, 0.9)';
   ctx.fillRect(0, 0, BRIEF_CANVAS_W, BRIEF_CANVAS_H);
 
+  const brief = narrative?.brief;
+  if (!brief) {
+    ctx.fillStyle = '#9ad9ff';
+    ctx.font = 'bold 36px ui-sans-serif, system-ui, sans-serif';
+    ctx.textBaseline = 'top';
+    ctx.fillText(narrative?.steps?.[0]?.title || 'Dock the ligand', 32, 32);
+    ctx.fillStyle = '#e0e0f0';
+    ctx.font = '22px ui-sans-serif, system-ui, sans-serif';
+    for (const line of wrapText(ctx, narrative?.steps?.[0]?.body || '', BRIEF_CANVAS_W - 64)) {
+      ctx.fillText(line, 32, 80);
+    }
+    return;
+  }
+
   // Title
   ctx.fillStyle = '#9ad9ff';
   ctx.font = 'bold 48px ui-sans-serif, system-ui, sans-serif';
   ctx.textBaseline = 'top';
-  ctx.fillText(narrative.brief.title, 32, 24);
+  ctx.fillText(brief.title, 32, 24);
 
   // Body
   const bodyTextStart = 96;
@@ -59,7 +73,7 @@ function paintBrief(canvas, narrative) {
   ctx.fillText('Biology', 32, bodyTextStart);
   ctx.fillStyle = '#e0e0f0';
   let y = bodyTextStart + 36;
-  for (const line of wrapText(ctx, narrative.brief.biology, BRIEF_CANVAS_W - 64)) {
+  for (const line of wrapText(ctx, brief.biology || '', BRIEF_CANVAS_W - 64)) {
     ctx.fillText(line, 32, y);
     y += 30;
   }
@@ -69,7 +83,7 @@ function paintBrief(canvas, narrative) {
   ctx.fillText('Engineering', 32, y);
   ctx.fillStyle = '#e0e0f0';
   y += 36;
-  for (const line of wrapText(ctx, narrative.brief.engineering, BRIEF_CANVAS_W - 64)) {
+  for (const line of wrapText(ctx, brief.engineering || '', BRIEF_CANVAS_W - 64)) {
     ctx.fillText(line, 32, y);
     y += 30;
   }
@@ -142,7 +156,7 @@ export function buildNarrativePanel({
 
   // Residue side-notes
   for (const residue of pocketAnnotation.key_residues || []) {
-    const note = narrative.residue_notes?.[residue.id];
+    const note = narrative.residue_notes?.[residue.id] || narrative.residue_notes?.[residue.name];
     if (!note) continue;
     const canvas = document.createElement('canvas');
     canvas.width = 512;
@@ -184,7 +198,7 @@ export function buildNarrativePanel({
 
   function update(dtMs, camera) {
     dtSinceBoot += dtMs;
-    const autoDismissMs = (narrative.brief?.auto_dismiss_seconds ?? 15) * 1000;
+    const autoDismissMs = (narrative?.brief?.auto_dismiss_seconds ?? 15) * 1000;
     if (dtSinceBoot >= autoDismissMs) brief.visible = false;
     if (camera) {
       brief.lookAt(camera.position);
