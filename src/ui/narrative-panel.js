@@ -77,7 +77,7 @@ function paintBrief(canvas, narrative) {
   // Dismiss hint
   ctx.fillStyle = '#888';
   ctx.font = '20px ui-sans-serif, system-ui, sans-serif';
-  ctx.fillText('A button (left) to dismiss', 32, BRIEF_CANVAS_H - 36);
+  ctx.fillText('A (left) or X (right) to dismiss', 32, BRIEF_CANVAS_H - 36);
 }
 
 function paintNote(canvas, label, body) {

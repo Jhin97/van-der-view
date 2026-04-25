@@ -53,7 +53,7 @@ export default class LevelTwoScene {
     this.completed = false;
     this.onComplete = null;
     this.telemetryAccumMs = 0;
-    this._prevSelect = [false, false];
+    this._prevSelect = { left: false, right: false };
     this._desktopClick = null;
     this.spawn = { player: [0, 0, 0], camera: [0, 1.6, 0.6] };
   }
@@ -442,13 +442,15 @@ export default class LevelTwoScene {
     // VR triggers
     const session = this.ctx.renderer.xr.getSession();
     if (session) {
-      let idx = 0;
       for (const source of session.inputSources) {
-        if (idx >= 2) break;
+        const hand = source.handedness;
+        if (hand !== 'left' && hand !== 'right') continue;
         const pressed = !!source.gamepad?.buttons?.[0]?.pressed;
-        const fresh = pressed && !this._prevSelect[idx];
+        const fresh = pressed && !this._prevSelect[hand];
         if (fresh) {
-          const ctrl = controllers[idx];
+          // Map handedness to controller index: left=0, right=1
+          const ctrlIdx = hand === 'left' ? 0 : 1;
+          const ctrl = controllers[ctrlIdx];
           if (ctrl) {
             const tempMat = new THREE.Matrix4().extractRotation(ctrl.matrixWorld);
             const rc = new THREE.Raycaster();
@@ -457,8 +459,7 @@ export default class LevelTwoScene {
             this._tryActivateFromRay(rc);
           }
         }
-        this._prevSelect[idx] = pressed;
-        idx++;
+        this._prevSelect[hand] = pressed;
       }
     }
 

@@ -99,7 +99,7 @@ export default class LevelOneScene {
     this.telemetryAccumMs = 0;
     this.dtSinceInit = 0;
     this.redockCount = 0;
-    this.lastButtons = { A: false, B: false }; // edge detection on left controller
+    this.lastButtons = {}; // edge detection keyed by hand + button
   }
 
   async init() {
@@ -322,21 +322,27 @@ export default class LevelOneScene {
     const session = this.ctx.renderer.xr.getSession();
     if (!session) return;
     for (const source of session.inputSources) {
-      if (source.handedness !== 'left' || !source.gamepad) continue;
+      if (!source.gamepad) continue;
+      const hand = source.handedness;
+      // On Quest 3 xr-standard mapping:
+      //   Left controller:  buttons[4]=A, buttons[5]=B
+      //   Right controller: buttons[4]=X, buttons[5]=Y
+      // Both act as "action" and "secondary" buttons respectively.
       const buttons = source.gamepad.buttons || [];
-      // Quest 3S: button index 4 = A (lower), 5 = B (upper) on left controller
-      // (exact indices: trigger=0, squeeze=1, thumbstick=3, A=4, B=5)
-      const aPressed = !!buttons[4]?.pressed;
-      const bPressed = !!buttons[5]?.pressed;
+      const actionPressed = !!buttons[4]?.pressed;   // A (left) or X (right)
+      const secondaryPressed = !!buttons[5]?.pressed; // B (left) or Y (right)
 
-      if (aPressed && !this.lastButtons.A) {
+      const actionKey = hand + '_action';
+      const secondaryKey = hand + '_secondary';
+
+      if (actionPressed && !this.lastButtons[actionKey]) {
         this.narrativePanel.dismissBrief();
       }
-      if (bPressed && !this.lastButtons.B) {
+      if (secondaryPressed && !this.lastButtons[secondaryKey]) {
         this._redock();
       }
-      this.lastButtons.A = aPressed;
-      this.lastButtons.B = bPressed;
+      this.lastButtons[actionKey] = actionPressed;
+      this.lastButtons[secondaryKey] = secondaryPressed;
     }
   }
 

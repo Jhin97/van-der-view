@@ -507,19 +507,30 @@ export default class TutorialScene {
 
   _checkForceSkip(controllers, dt) {
     if (this.state === STATES.COMPLETE) return;
-    // Check if both select buttons are held
-    let bothHeld = true;
-    for (const ctrl of controllers) {
-      if (!ctrl || !ctrl.userData) { bothHeld = false; break; }
-      // selectstart sets held, but for force-skip we check gamepad
-      const session = this.ctx.renderer.xr.getSession();
-      if (!session) { bothHeld = false; break; }
-    }
-    // Simpler: check if both controllers are holding something OR user holds both triggers
-    // For 2D desktop testing: press both mouse buttons — skip after 2s of holding both
     if (this._forceSkipTimer === undefined) this._forceSkipTimer = 0;
-    // We'll use a keyboard shortcut for desktop: press Space twice
-    // For VR: we rely on the timeout system which always progresses
+
+    // VR: check if both triggers are held via gamepad
+    const session = this.ctx.renderer.xr.getSession();
+    if (session) {
+      let triggersHeld = 0;
+      for (const source of session.inputSources) {
+        if (source.gamepad?.buttons?.[0]?.pressed) triggersHeld++;
+      }
+      if (triggersHeld >= 2) {
+        this._forceSkipTimer += dt;
+        if (this._forceSkipTimer >= 2000) {
+          this._forceSkipTimer = 0;
+          // Advance to next state
+          const order = [STATES.INTRO, STATES.WAIT_GRAB, STATES.GRABBED, STATES.WAIT_ROTATE, STATES.ROTATING, STATES.WAIT_SNAP, STATES.SNAPPED, STATES.COMPLETE];
+          const idx = order.indexOf(this.state);
+          if (idx < order.length - 1) this._enterState(order[idx + 1]);
+        }
+        return;
+      }
+    }
+
+    // Reset timer if not holding both triggers
+    this._forceSkipTimer = 0;
   }
 
   // ---- alignment & distance helpers ---------------------------------------

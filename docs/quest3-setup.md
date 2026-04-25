@@ -35,10 +35,13 @@ In the Quest browser: navigate to `https://localhost:5173`, accept the self-sign
 
 | Input | Action |
 | --- | --- |
-| Trigger | Grab raycast-targeted cube; release to drop |
-| Grip (squeeze) | Hold to aim teleport ring; release to teleport |
+| Trigger | Grab raycast-targeted object; release to drop. Hold both triggers 2s to force-skip tutorial step. |
+| Grip (squeeze) | Hold to aim teleport arc; release to teleport to landing point |
 | Left thumbstick | Smooth locomotion (forward/strafe) |
-| Hand tracking | Auto-detected when controllers idle |
+| Right thumbstick | Snap-turn (click left/right to rotate 45 degrees) |
+| A/X button | Dismiss narrative panel |
+| B/Y button | Redock ligand to spawn position |
+| Hand tracking | Pinch to grab (auto-detected when controllers idle) |
 
 ## Troubleshooting
 

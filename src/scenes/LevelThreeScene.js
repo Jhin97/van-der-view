@@ -48,6 +48,10 @@ export default class LevelThreeScene {
   update(dt, controllers) {
     if (this.phase === 'viewing') {
       this.viewingTimer += dt;
+      // Allow early skip with trigger press
+      if (this._anyTriggerPressed()) {
+        this.viewingTimer = this.viewingDuration;
+      }
       if (this.viewingTimer >= this.viewingDuration) {
         this._startNarrative();
       }
@@ -55,6 +59,20 @@ export default class LevelThreeScene {
 
     // Always animate the 3D scene
     updateL3Scene(performance.now());
+  }
+
+  _anyTriggerPressed() {
+    const session = this.ctx.renderer.xr.getSession();
+    if (!session) return false;
+    for (const source of session.inputSources) {
+      if (source.gamepad?.buttons?.[0]?.pressed) {
+        // Also skip any active overlay (cutscene or wrap card)
+        if (window.__VDV_CUTSCENE_SKIP) window.__VDV_CUTSCENE_SKIP();
+        if (window.__VDV_WRAP_SKIP) window.__VDV_WRAP_SKIP();
+        return true;
+      }
+    }
+    return false;
   }
 
   async _startNarrative() {

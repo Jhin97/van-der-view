@@ -73,6 +73,164 @@ const handModelFactory = new XRHandModelFactory();
 const tempMatrix = new THREE.Matrix4();
 const raycaster = new THREE.Raycaster();
 
+// ---- XR Input Manager ------------------------------------------------------
+
+const xrInput = {
+  left:  { axes: [0, 0, 0, 0], buttons: [], squeeze: false, prevSqueeze: false },
+  right: { axes: [0, 0, 0, 0], buttons: [], squeeze: false, prevSqueeze: false },
+};
+
+function pollXRInput() {
+  const session = renderer.xr.getSession();
+  if (!session) {
+    xrInput.left.squeeze = false;
+    xrInput.right.squeeze = false;
+    return;
+  }
+  for (const source of session.inputSources) {
+    const hand = source.handedness; // 'left' | 'right' | 'none'
+    if (hand !== 'left' && hand !== 'right') continue;
+    const state = xrInput[hand];
+    state.prevSqueeze = state.squeeze;
+    if (source.gamepad) {
+      state.axes = source.gamepad.axes || [];
+      state.buttons = source.gamepad.buttons || [];
+      state.squeeze = !!state.buttons[1]?.pressed;
+    }
+  }
+}
+
+// ---- Teleportation ---------------------------------------------------------
+
+const TELEPORT_MAX_DIST = 8;
+const TELEPORT_RAY_SEGMENTS = 30;
+const TELEPORT_SEGMENT_DT = 0.016;
+const SNAP_TURN_ANGLE = Math.PI / 4; // 45 degrees
+
+const teleportArcPoints = [];
+for (let i = 0; i <= TELEPORT_RAY_SEGMENTS; i++) teleportArcPoints.push(new THREE.Vector3());
+
+const teleportGeo = new THREE.BufferGeometry().setFromPoints(teleportArcPoints);
+const teleportMat = new THREE.LineBasicMaterial({ color: 0x06d6a0, transparent: true, opacity: 0.7 });
+const teleportLine = new THREE.Line(teleportGeo, teleportMat);
+teleportLine.visible = false;
+scene.add(teleportLine);
+
+const teleportMarkerGeo = new THREE.RingGeometry(0.15, 0.22, 32);
+const teleportMarkerMat = new THREE.MeshBasicMaterial({ color: 0x06d6a0, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+const teleportMarker = new THREE.Mesh(teleportMarkerGeo, teleportMarkerMat);
+teleportMarker.rotation.x = -Math.PI / 2;
+teleportMarker.visible = false;
+scene.add(teleportMarker);
+
+let isTeleportAiming = false;
+let teleportHand = null;
+let lastSnapTurnTime = 0;
+
+function updateTeleport() {
+  // Check squeeze on either hand
+  const leftJustSqueezed = xrInput.left.squeeze && !xrInput.left.prevSqueeze;
+  const rightJustSqueezed = xrInput.right.squeeze && !xrInput.right.prevSqueeze;
+  const leftReleased = !xrInput.left.squeeze && xrInput.left.prevSqueeze;
+  const rightReleased = !xrInput.right.squeeze && xrInput.right.prevSqueeze;
+
+  if (leftJustSqueezed && !isTeleportAiming) {
+    isTeleportAiming = true;
+    teleportHand = 'left';
+  } else if (rightJustSqueezed && !isTeleportAiming) {
+    isTeleportAiming = true;
+    teleportHand = 'right';
+  }
+
+  if (isTeleportAiming) {
+    // Compute parabolic arc from the squeezing controller
+    const ctrl = teleportHand === 'left' ? controller0 : controller1;
+    const origin = new THREE.Vector3();
+    const direction = new THREE.Vector3(0, 0, -1);
+    const rotMat = new THREE.Matrix4().extractRotation(ctrl.matrixWorld);
+    origin.setFromMatrixPosition(ctrl.matrixWorld);
+    direction.applyMatrix4(rotMat);
+
+    // Launch velocity: forward + slight upward arc
+    const speed = 5;
+    const velocity = direction.multiplyScalar(speed);
+    velocity.y += 2.5; // upward bias for arc
+
+    const posAttr = teleportGeo.attributes.position;
+    let validHit = null;
+    for (let i = 0; i <= TELEPORT_RAY_SEGMENTS; i++) {
+      const t = i * TELEPORT_SEGMENT_DT;
+      const px = origin.x + velocity.x * t;
+      const py = origin.y + velocity.y * t - 0.5 * 9.8 * t * t;
+      const pz = origin.z + velocity.z * t;
+      posAttr.setXYZ(i, px, py, pz);
+
+      // Check ground hit (y <= 0)
+      if (py <= 0 && i > 0) {
+        // Interpolate to exact ground point
+        const prevY = posAttr.getY(i - 1);
+        const frac = prevY / (prevY - py);
+        const hitX = posAttr.getX(i - 1) + (px - posAttr.getX(i - 1)) * frac;
+        const hitZ = posAttr.getZ(i - 1) + (pz - posAttr.getZ(i - 1)) * frac;
+        const dist = Math.sqrt(hitX * hitX + hitZ * hitZ);
+        if (dist <= TELEPORT_MAX_DIST) {
+          validHit = { x: hitX, z: hitZ };
+        }
+        // Hide remaining segments
+        for (let j = i + 1; j <= TELEPORT_RAY_SEGMENTS; j++) {
+          posAttr.setXYZ(j, px, 0, pz);
+        }
+        break;
+      }
+    }
+    posAttr.needsUpdate = true;
+    teleportLine.visible = true;
+
+    if (validHit) {
+      teleportMarker.position.set(validHit.x, 0.01, validHit.z);
+      teleportMarker.visible = true;
+      teleportMarkerMat.color.setHex(0x06d6a0);
+    } else {
+      teleportMarker.visible = false;
+      teleportMarkerMat.color.setHex(0xff4444);
+    }
+
+    // Release → teleport
+    const released = (teleportHand === 'left' && leftReleased) || (teleportHand === 'right' && rightReleased);
+    if (released) {
+      if (validHit) {
+        player.position.x = validHit.x;
+        player.position.z = validHit.z;
+      }
+      isTeleportAiming = false;
+      teleportHand = null;
+      teleportLine.visible = false;
+      teleportMarker.visible = false;
+    }
+  }
+}
+
+// ---- Snap-turn (right thumbstick) ------------------------------------------
+
+function handleSnapTurn() {
+  const session = renderer.xr.getSession();
+  if (!session) return;
+  const now = performance.now();
+  if (now - lastSnapTurnTime < 300) return; // debounce
+
+  const axes = xrInput.right.axes;
+  if (axes.length < 4) return;
+  const x = axes[2]; // right thumbstick X
+
+  if (x > 0.7) {
+    player.rotation.y -= SNAP_TURN_ANGLE;
+    lastSnapTurnTime = now;
+  } else if (x < -0.7) {
+    player.rotation.y += SNAP_TURN_ANGLE;
+    lastSnapTurnTime = now;
+  }
+}
+
 // ---- Scene transition system -----------------------------------------------
 
 let activeScene = null;
@@ -258,6 +416,11 @@ function buildController(index) {
   controller.addEventListener('selectstart', () => onSelectStart(controller));
   controller.addEventListener('selectend', () => onSelectEnd(controller));
 
+  // Hand tracking: pinch gestures fire select events on the hand object.
+  // Forward them to the same handlers so hand tracking can grab/click.
+  hand.addEventListener('selectstart', () => onSelectStart(hand));
+  hand.addEventListener('selectend', () => onSelectEnd(hand));
+
   player.add(controller);
   return controller;
 }
@@ -276,6 +439,8 @@ function onSelectStart(controller) {
     if (obj.userData.grabbable) {
       controller.attach(obj);
       controller.userData.held = obj;
+      // Haptic feedback on grab
+      _pulseController(controller, 0.5, 80);
       return;
     }
   }
@@ -294,26 +459,35 @@ function onSelectEnd(controller) {
   }
 }
 
+function _pulseController(controller, intensity, durationMs) {
+  const session = renderer.xr.getSession();
+  if (!session) return;
+  for (const source of session.inputSources) {
+    const actuator = source.gamepad?.hapticActuators?.[0] || source.gamepad?.vibrationActuator;
+    if (actuator) {
+      try { actuator.pulse(intensity, durationMs); } catch {}
+    }
+  }
+}
+
 const controller0 = buildController(0);
 const controller1 = buildController(1);
 
 function handleThumbstickLocomotion() {
   const session = renderer.xr.getSession();
   if (!session) return;
-  for (const source of session.inputSources) {
-    if (!source.gamepad || !source.handedness) continue;
-    const axes = source.gamepad.axes;
-    if (axes.length < 4) continue;
-    const x = axes[2];
-    const y = axes[3];
-    if (Math.abs(x) > 0.5 || Math.abs(y) > 0.5) {
-      const speed = 0.04;
-      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion()));
-      forward.y = 0; forward.normalize();
-      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
-      player.position.addScaledVector(forward, -y * speed);
-      player.position.addScaledVector(right, x * speed);
-    }
+  // Only use left thumbstick for movement; right is for snap-turn
+  const axes = xrInput.left.axes;
+  if (axes.length < 4) return;
+  const x = axes[2];
+  const y = axes[3];
+  if (Math.abs(x) > 0.3 || Math.abs(y) > 0.3) {
+    const speed = 0.04;
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion()));
+    forward.y = 0; forward.normalize();
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).negate();
+    player.position.addScaledVector(forward, -y * speed);
+    player.position.addScaledVector(right, x * speed);
   }
 }
 
@@ -417,7 +591,10 @@ renderer.setAnimationLoop((time) => {
   const dt = lastTime ? time - lastTime : 16;
   lastTime = time;
 
+  pollXRInput();
   handleThumbstickLocomotion();
+  handleSnapTurn();
+  updateTeleport();
   handleDesktopFallback(dt);
 
   if (activeScene && !transitioning) {
@@ -434,7 +611,7 @@ if (!('xr' in navigator)) {
 }
 
 // Debug surface
-window.__VDV = { scene, renderer, camera, player, registerScene, progress };
+window.__VDV = { scene, renderer, camera, player, registerScene, progress, xrInput };
 
 // ---- Survey flow ----------------------------------------------------------
 

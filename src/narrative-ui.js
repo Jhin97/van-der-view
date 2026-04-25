@@ -116,7 +116,7 @@ export function showCutscene() {
     progressWrap.appendChild(progressBar);
 
     const skipBtn = document.createElement('button');
-    skipBtn.textContent = 'Skip';
+    skipBtn.textContent = 'Skip (or pull trigger in VR)';
     skipBtn.style.cssText = `
       margin-top:16px; padding:8px 20px; background:transparent;
       border:1px solid #555; color:#888; border-radius:6px; cursor:pointer; font-size:13px;
@@ -132,17 +132,23 @@ export function showCutscene() {
     let skipped = false;
     let timeoutId = null;
 
-    skipBtn.addEventListener('click', () => {
+    function doSkip() {
       skipped = true;
       if (timeoutId) clearTimeout(timeoutId);
       overlay.remove();
       resolve();
-    });
+    }
+
+    skipBtn.addEventListener('click', doSkip);
+
+    // Expose skip function so VR trigger can call it
+    window.__VDV_CUTSCENE_SKIP = doSkip;
 
     function showBeat(index) {
       if (skipped) return;
       if (index >= CUTSCENE_BEATS.length) {
         overlay.remove();
+        delete window.__VDV_CUTSCENE_SKIP;
         resolve();
         return;
       }
@@ -184,16 +190,24 @@ export function showWrapCard() {
     `;
 
     const continueBtn = document.createElement('button');
-    continueBtn.textContent = 'Continue to Survey';
+    continueBtn.textContent = 'Continue to Survey (or pull trigger in VR)';
     continueBtn.style.cssText = `
       margin-top:20px; padding:10px 28px; font-size:15px;
       background:#06d6a0; color:#0a0a14; border:none; border-radius:8px;
       cursor:pointer; font-weight:600;
     `;
-    continueBtn.addEventListener('click', () => {
+
+    function doContinue() {
       overlay.remove();
+      delete window.__VDV_WRAP_SKIP;
       resolve();
-    });
+    }
+
+    continueBtn.addEventListener('click', doContinue);
+
+    // Expose skip function so VR trigger can call it
+    window.__VDV_WRAP_SKIP = doContinue;
+
     card.appendChild(continueBtn);
 
     overlay.appendChild(card);
