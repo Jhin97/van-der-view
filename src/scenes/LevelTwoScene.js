@@ -53,7 +53,9 @@ export default class LevelTwoScene {
     this.completed = false;
     this.onComplete = null;
     this.telemetryAccumMs = 0;
-    this._prevSelect = [false, false];
+    // Map<handedness, boolean> — keyed by 'left'/'right' so inputSources
+    // order swaps (controller↔hand handover) don't break edge detection.
+    this._prevSelect = new Map();
     this._desktopClick = null;
     this.spawn = { player: [0, 0, 0], camera: [0, 1.6, 0.6] };
   }
@@ -67,6 +69,10 @@ export default class LevelTwoScene {
     this._buildNarrativePanel();
     this._buildBriefPanel();
 
+    // Snapshot current trigger state so a held-from-hub trigger doesn't
+    // produce a phantom first-frame selection here.
+    this._snapshotTriggers();
+
     postTelemetry([
       {
         session_id: window.__VDV_SESSION_ID || crypto.randomUUID(),
@@ -76,6 +82,15 @@ export default class LevelTwoScene {
         ts: Date.now(),
       },
     ]);
+  }
+
+  _snapshotTriggers() {
+    const session = this.ctx.renderer.xr.getSession();
+    if (!session) return;
+    for (const src of session.inputSources) {
+      if (!src.handedness || !src.gamepad) continue;
+      this._prevSelect.set(src.handedness, !!src.gamepad.buttons?.[0]?.pressed);
+    }
   }
 
   // ---- environment --------------------------------------------------------
@@ -439,14 +454,16 @@ export default class LevelTwoScene {
   }
 
   _handleSelections(controllers) {
-    // VR triggers
+    // VR triggers — key prev-state by handedness, not array index, so
+    // controller↔hand swaps mid-session don't desync edge detection.
     const session = this.ctx.renderer.xr.getSession();
     if (session) {
       let idx = 0;
       for (const source of session.inputSources) {
-        if (idx >= 2) break;
+        if (!source.handedness || !source.gamepad) { idx++; continue; }
         const pressed = !!source.gamepad?.buttons?.[0]?.pressed;
-        const fresh = pressed && !this._prevSelect[idx];
+        const prev = this._prevSelect.get(source.handedness) ?? false;
+        const fresh = pressed && !prev;
         if (fresh) {
           const ctrl = controllers[idx];
           if (ctrl) {
@@ -457,7 +474,7 @@ export default class LevelTwoScene {
             this._tryActivateFromRay(rc);
           }
         }
-        this._prevSelect[idx] = pressed;
+        this._prevSelect.set(source.handedness, pressed);
         idx++;
       }
     }

@@ -106,7 +106,7 @@ function registerScene(id, SceneClass) {
   SCENE_MAP[id] = SceneClass;
 }
 
-function loadScene(sceneIdOrClass) {
+async function loadScene(sceneIdOrClass) {
   let SceneClass;
   let sceneId = null;
 
@@ -127,25 +127,37 @@ function loadScene(sceneIdOrClass) {
   desktopHeld = null;
 
   if (activeScene) activeScene.destroy();
-  activeScene = new SceneClass({ scene, player, renderer, camera });
-  activeScene.init();
+  const nextScene = new SceneClass({ scene, player, renderer, camera });
 
-  // Wire level completion → hub return
-  if (activeScene.onComplete !== undefined) {
-    activeScene.onComplete = () => {
+  // Wire callbacks BEFORE init so async init paths cannot fire onComplete /
+  // onSelectPortal against a null-target scene. (P0-1 fix.)
+  if (nextScene.onComplete !== undefined) {
+    nextScene.onComplete = () => {
       if (sceneId) markProgress(sceneId);
       transitionToHub();
     };
   }
-
-  // Wire hub portal selection → scene transitions
-  if (activeScene.onSelectPortal !== undefined) {
-    activeScene.onSelectPortal = (portalId) => {
+  if (nextScene.onSelectPortal !== undefined) {
+    nextScene.onSelectPortal = (portalId) => {
       if (SCENE_MAP[portalId]) {
         transitionToScene(portalId);
       }
     };
   }
+
+  // Await async init so first update() does not run on a half-built scene.
+  // Sync init() returns undefined which Promise.resolve handles fine.
+  try {
+    await Promise.resolve(nextScene.init());
+  } catch (err) {
+    console.error('[scene] init failed', err);
+    nextScene.destroy?.();
+    return;
+  }
+
+  // Only commit nextScene to activeScene after init resolves so the render
+  // loop never sees a scene mid-construction.
+  activeScene = nextScene;
 
   grabbables = activeScene.getGrabbables();
   if (activeScene.enableSkipShortcut) activeScene.enableSkipShortcut();
@@ -156,30 +168,30 @@ function loadScene(sceneIdOrClass) {
   }
 }
 
-function transitionToScene(sceneId) {
+async function transitionToScene(sceneId) {
   if (transitioning) return;
   transitioning = true;
-  _fadeOut(300).then(() => {
-    loadScene(sceneId);
-    renderer.render(scene, camera);
-    _fadeIn(300).then(() => {
-      transitioning = false;
-    });
-  });
+  await _fadeOut(300);
+  await loadScene(sceneId);
+  await _fadeIn(300);
+  transitioning = false;
 }
 
-function transitionToHub() {
+async function transitionToHub() {
   if (transitioning) return;
   transitioning = true;
-  _fadeOut(300).then(() => {
-    loadScene(GameHubScene);
-    _syncHubProgress();
-    renderer.render(scene, camera);
-    _fadeIn(300).then(() => {
-      transitioning = false;
-    });
-  });
+  await _fadeOut(300);
+  await loadScene(GameHubScene);
+  _syncHubProgress();
+  await _fadeIn(300);
+  transitioning = false;
 }
+
+// Fade animation state — ticked from the main animation loop so it works
+// in both desktop and immersive-VR (window.requestAnimationFrame is paused
+// during a WebXR session on Quest, so the previous standalone-rAF fade
+// never resolved and transitions hung forever).
+let fadeAnim = null; // { from, to, startTime, duration, resolve }
 
 function _fadeOut(duration) {
   return _animateFade(0, 1, duration);
@@ -191,17 +203,21 @@ function _fadeIn(duration) {
 
 function _animateFade(from, to, duration) {
   return new Promise(resolve => {
-    const start = performance.now();
-    function step() {
-      const t = Math.min(1, (performance.now() - start) / duration);
-      fadeMat.opacity = from + (to - from) * t;
-      updateFadeQuad();
-      renderer.render(scene, camera);
-      if (t < 1) requestAnimationFrame(step);
-      else resolve();
-    }
-    step();
+    fadeAnim = { from, to, startTime: null, duration, resolve };
   });
+}
+
+function _tickFade(time) {
+  if (!fadeAnim) return;
+  if (fadeAnim.startTime === null) fadeAnim.startTime = time;
+  const t = Math.min(1, (time - fadeAnim.startTime) / fadeAnim.duration);
+  fadeMat.opacity = fadeAnim.from + (fadeAnim.to - fadeAnim.from) * t;
+  updateFadeQuad();
+  if (t >= 1) {
+    const r = fadeAnim.resolve;
+    fadeAnim = null;
+    r();
+  }
 }
 
 // ---- Progress tracking -----------------------------------------------------
@@ -414,8 +430,15 @@ let lastTime = 0;
 renderer.setAnimationLoop((time) => {
   if (!animating) return;
 
-  const dt = lastTime ? time - lastTime : 16;
+  // Clamp dt so a Meta-menu pause / focus-loss doesn't trip state-machine
+  // timers in a single frame on resume. (P1: dt clamp.)
+  const rawDt = lastTime ? time - lastTime : 16;
+  const dt = Math.min(rawDt, 100);
   lastTime = time;
+
+  // Drive fade animation from the main loop so it works in immersive VR
+  // (where window.requestAnimationFrame is paused).
+  _tickFade(time);
 
   handleThumbstickLocomotion();
   handleDesktopFallback(dt);
@@ -462,9 +485,9 @@ async function runPostSurvey() {
   showThankYou();
 }
 
-function startExperience() {
+async function startExperience() {
   animating = true;
-  loadScene(GameHubScene);
+  await loadScene(GameHubScene);
   _syncHubProgress();
   renderer.render(scene, camera);
   createFinishButton(() => runPostSurvey());

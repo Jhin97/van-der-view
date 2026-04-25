@@ -206,6 +206,10 @@ export default class LevelOneScene {
     this.pivot = pivot;
     this.ready = true;
 
+    // Snapshot current A/B state so a held button doesn't produce a phantom
+    // first-frame action (P0-2).
+    this._snapshotButtons();
+
     postTelemetry([
       {
         session_id: window.__VDV_SESSION_ID || crypto.randomUUID(),
@@ -216,6 +220,17 @@ export default class LevelOneScene {
         ts: Date.now(),
       },
     ]);
+  }
+
+  _snapshotButtons() {
+    const session = this.ctx.renderer.xr.getSession();
+    if (!session) return;
+    for (const source of session.inputSources) {
+      if (source.handedness !== 'left' || !source.gamepad) continue;
+      const buttons = source.gamepad.buttons || [];
+      this.lastButtons.A = !!buttons[4]?.pressed;
+      this.lastButtons.B = !!buttons[5]?.pressed;
+    }
   }
 
   update(dt, controllers) {
