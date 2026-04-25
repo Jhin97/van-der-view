@@ -2,6 +2,7 @@
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-q -ra"
+markers = ["network: requires network access"]
 
 [tool.ruff]
 line-length = 100
