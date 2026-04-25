@@ -124,6 +124,11 @@ function loadScene(sceneIdOrClass) {
     SceneClass = sceneIdOrClass;
   }
 
+  // Clear held references before destroying scene to prevent ghost objects
+  controller0.userData.held = null;
+  controller1.userData.held = null;
+  desktopHeld = null;
+
   // Synchronous scene switch (no transition)
   if (activeScene) activeScene.destroy();
   activeScene = new SceneClass({ scene, player, renderer });
@@ -369,6 +374,8 @@ renderer.domElement.addEventListener('mousedown', (e) => {
     ((e.clientX - rect.left) / rect.width) * 2 - 1,
     -((e.clientY - rect.top) / rect.height) * 2 + 1,
   );
+
+  // Try grab first
   const rc = new THREE.Raycaster();
   rc.setFromCamera(mouse, camera);
   const hits = rc.intersectObjects(grabbables, true);
@@ -378,7 +385,13 @@ renderer.domElement.addEventListener('mousedown', (e) => {
     if (obj.userData.grabbable) {
       desktopHeld = obj;
       desktopHeld._dragOffset = obj.position.clone().sub(camera.position);
+      return;
     }
+  }
+
+  // No grabbable hit — forward click to active scene (for hub portal clicks)
+  if (activeScene && activeScene._desktopClick !== undefined) {
+    activeScene._desktopClick = mouse;
   }
 });
 

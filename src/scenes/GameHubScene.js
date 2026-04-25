@@ -346,14 +346,59 @@ export default class GameHubScene {
       const dist = playerPos.distanceTo(portalPos);
       if (dist < 0.6) {
         if (this.onSelectPortal) this.onSelectPortal(p.def.id);
-        return; // only trigger one
+        return;
       }
     }
 
-    // Also check controller ray hits for VR
-    for (const ctrl of controllers) {
-      if (!ctrl || !ctrl.userData) continue;
-      // Use the raycaster approach: check if select is pressed while pointing at a portal
+    // VR: point controller at portal frame + press trigger
+    // Track select state to detect fresh presses (not held)
+    if (this._prevSelect === undefined) this._prevSelect = [false, false];
+    const session = this.ctx.renderer.xr.getSession();
+    if (session) {
+      let idx = 0;
+      for (const source of session.inputSources) {
+        if (idx >= 2) break;
+        const pressed = source.gamepad && source.gamepad.buttons[0] && source.gamepad.buttons[0].pressed;
+        const freshPress = pressed && !this._prevSelect[idx];
+
+        if (freshPress) {
+          const rc = new THREE.Raycaster();
+          const ctrl = controllers[idx];
+          if (ctrl) {
+            const tempMat = new THREE.Matrix4().extractRotation(ctrl.matrixWorld);
+            rc.ray.origin.setFromMatrixPosition(ctrl.matrixWorld);
+            rc.ray.direction.set(0, 0, -1).applyMatrix4(tempMat);
+
+            for (const p of this.portals) {
+              if (!this.isUnlocked(p.def.id)) continue;
+              const hits = rc.intersectObject(p.frame, false);
+              if (hits.length > 0) {
+                if (this.onSelectPortal) this.onSelectPortal(p.def.id);
+                this._prevSelect[idx] = pressed;
+                return;
+              }
+            }
+          }
+        }
+        this._prevSelect[idx] = pressed;
+        idx++;
+      }
+    }
+
+    // Desktop: click on portal frame
+    if (this._desktopClick) {
+      const rc = new THREE.Raycaster();
+      rc.setFromCamera(this._desktopClick, this.ctx.renderer.xr.getCamera(camera));
+      for (const p of this.portals) {
+        if (!this.isUnlocked(p.def.id)) continue;
+        const hits = rc.intersectObject(p.frame, false);
+        if (hits.length > 0) {
+          if (this.onSelectPortal) this.onSelectPortal(p.def.id);
+          this._desktopClick = null;
+          return;
+        }
+      }
+      this._desktopClick = null;
     }
   }
 
