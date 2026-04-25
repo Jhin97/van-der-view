@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "locale": "en",
+  "brief": {
+    "title": "Mission: Inhibit COX-2",
+    "biology": "Cyclooxygenase-2, or COX-2, is an enzyme you will find upregulated during inflammation. It is responsible for the synthesis of prostaglandins, the lipid mediators that signal pain, fever, and swelling in your body. By pharmacologically blocking this enzyme, we can achieve a potent anti-inflammatory effect. However, you must be precise. COX-1 is the 'housekeeping' twin of COX-2, responsible for protecting your gastric mucosa and regulating platelet thromboxane. Non-selective inhibitors can damage the stomach, so your goal is to recognise the subtle structural differences that allow for COX-2 selectivity. In this lab, you will explore how a single amino acid change creates a unique opportunity for targeted drug design, ensuring your therapy minimises side effects while treating the patient’s underlying inflammation.",
+    "engineering": "Your mission is to perform a molecular docking operation. Using your controllers, you must grab the celecoxib molecule and manually orient it within the COX-2 active site. Your objective is to block the catalytic channel so that the natural substrate, arachidonic acid, can no longer fit. To succeed, you must maximise shape complementarity and establish at least two hydrogen-bond contacts with the marquee residues indicated in your display. Pay close attention to the spatial orientation of the sulfonamide group. Note that the real-time score you see is an educational proxy designed to guide your hand; it is not a rigorous calculation of thermodynamic binding affinity, but it will help you identify the most favourable pose for this ligand.",
+    "auto_dismiss_seconds": 15
+  },
+  "residue_notes": {
+    "VAL523": "This smaller valine residue acts as a selectivity gatekeeper. It opens a side pocket in COX-2 that is blocked by isoleucine in COX-1.",
+    "ARG120": "Located at the channel mouth, this residue anchors the polar sulfonamide head of celecoxib through critical electrostatic and hydrogen-bonding interactions.",
+    "TYR385": "A key hydrogen-bond donor situated deep within the active site. It interacts with the sulfonamide oxygens to stabilise the docked ligand pose.",
+    "SER530": "While famously acetylated by aspirin to inhibit COX activity, for celecoxib, this residue provides spatial context rather than a direct binding link."
+  },
+  "score_hint": "Score = α·shape + β·H-bonds − γ·clashes. This is an educational proxy, not a real binding ΔG measurement.",
+  "best_pose_message": "Excellent work. You have successfully engaged the Val523 side pocket, achieving the precise orientation required for selective COX-2 inhibition and clinical efficacy.",
+  "tts_metadata": {
+    "voice_persona": "dr_chen",
+    "max_seconds_per_block": 60,
+    "wpm": 130
+  }
+}
