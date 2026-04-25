@@ -1,0 +1,23 @@
+{
+  "name": "van-der-view",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "WebXR protein structure viewer - F-001 scaffold",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "tunnel": "node scripts/quest-tunnel.mjs",
+    "mirror": "node scripts/quest-mirror.mjs",
+    "quest": "node scripts/quest-tunnel.mjs && node scripts/quest-mirror.mjs"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10",
+    "vite-plugin-mkcert": "^1.17.6"
+  },
+  "dependencies": {
+    "three": "^0.169.0",
+    "ws": "^8.18.0"
+  }
+}
