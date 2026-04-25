@@ -5,6 +5,7 @@ import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import TutorialScene from './scenes/TutorialScene.js';
 import GameHubScene from './scenes/GameHubScene.js';
 import LevelOneScene from './scenes/LevelOneScene.js';
+import LevelTwoScene from './scenes/LevelTwoScene.js';
 import LevelThreeScene from './scenes/LevelThreeScene.js';
 import { PRE_QUESTIONS, POST_QUESTIONS } from './survey-questions.js';
 import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from './survey-ui.js';
