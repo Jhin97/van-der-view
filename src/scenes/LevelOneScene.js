@@ -83,6 +83,28 @@ function _recolor(root, hex, opts = {}) {
   });
 }
 
+// Layer a dark line overlay on every mesh in the subtree — the silhouette
+// edges read as "sticks" against the (now translucent) surface so the
+// composite gives a ball+stick impression without re-exporting geometry.
+function _addStickOverlay(root, lineColorHex = 0x111122, angleThresholdDeg = 20) {
+  const mats = [];
+  root.traverse((c) => {
+    if (!c.geometry || !(c.isMesh)) return;
+    const edges = new THREE.EdgesGeometry(c.geometry, angleThresholdDeg);
+    const mat = new THREE.LineBasicMaterial({
+      color: lineColorHex,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    });
+    mats.push(mat);
+    const lines = new THREE.LineSegments(edges, mat);
+    lines.userData.stickOverlay = true;
+    c.add(lines);
+  });
+  return mats;
+}
+
 async function postTelemetry(events) {
   try {
     await fetch(TELEMETRY_ENDPOINT, {
@@ -178,7 +200,9 @@ export default class LevelOneScene {
     ligand.applyMatrix4(offsetMatrix);
     ligand.position.add(SPAWN_OFFSET);
     ligand.userData.grabbable = true;
-    _recolor(ligand, LIGAND_COLOR, { emissiveIntensity: 0.45 });
+    // Translucent surface + dark edge overlay → ball+stick reading.
+    _recolor(ligand, LIGAND_COLOR, { emissiveIntensity: 0.45, transparent: true, opacity: 0.55 });
+    _addStickOverlay(ligand);
     pivot.add(ligand);
     this.ligand = ligand;
     this.spawnTransform = {

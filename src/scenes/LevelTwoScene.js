@@ -107,6 +107,24 @@ function _recolor(root, hex, opts = {}) {
   });
 }
 
+// Same EdgesGeometry overlay as L1 — dark silhouette lines on top of the
+// translucent surface read as ball+stick.
+function _addStickOverlay(root, lineColorHex = 0x111122, angleThresholdDeg = 20) {
+  root.traverse((c) => {
+    if (!c.geometry || !(c.isMesh)) return;
+    const edges = new THREE.EdgesGeometry(c.geometry, angleThresholdDeg);
+    const mat = new THREE.LineBasicMaterial({
+      color: lineColorHex,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    });
+    const lines = new THREE.LineSegments(edges, mat);
+    lines.userData.stickOverlay = true;
+    c.add(lines);
+  });
+}
+
 export default class LevelTwoScene {
   constructor(ctx) {
     this.ctx = ctx;
@@ -251,9 +269,11 @@ export default class LevelTwoScene {
       ring.position.y = PED_HEIGHT + 0.01;
       group.add(ring);
 
-      // Ligand GLB sitting on the pedestal — the grabbable
+      // Ligand GLB sitting on the pedestal — the grabbable.
+      // Translucent surface + dark edge overlay → ball+stick reading.
       mesh.scale.setScalar(LIGAND_HANDHELD_SCALE);
-      _recolor(mesh, colorHex, { emissiveIntensity: 0.40 });
+      _recolor(mesh, colorHex, { emissiveIntensity: 0.40, transparent: true, opacity: 0.55 });
+      _addStickOverlay(mesh);
       mesh.position.y = PED_HEIGHT + 0.10;
       mesh.userData.grabbable = true;
       mesh.userData.ligandId = lig.name;
