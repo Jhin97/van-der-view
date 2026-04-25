@@ -5,6 +5,7 @@ import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import TutorialScene from './scenes/TutorialScene.js';
 import GameHubScene from './scenes/GameHubScene.js';
 import LevelOneScene from './scenes/LevelOneScene.js';
+import LevelThreeScene from './scenes/LevelThreeScene.js';
 import { PRE_QUESTIONS, POST_QUESTIONS } from './survey-questions.js';
 import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from './survey-ui.js';
 
@@ -69,13 +70,6 @@ const controllerModelFactory = new XRControllerModelFactory();
 const handModelFactory = new XRHandModelFactory();
 
 const tempMatrix = new THREE.Matrix4();
-const raycaster = new THREE.Raycaster();
-const teleportMarker = new THREE.Mesh(
-  new THREE.RingGeometry(0.18, 0.22, 32).rotateX(-Math.PI / 2),
-  new THREE.MeshBasicMaterial({ color: 0x06d6a0, transparent: true, opacity: 0.85 })
-);
-teleportMarker.visible = false;
-scene.add(teleportMarker);
 
 // ---- Scene transition system -----------------------------------------------
 
@@ -93,7 +87,6 @@ fadeQuad.frustumCulled = false;
 scene.add(fadeQuad);
 
 function updateFadeQuad() {
-  // Pin the fade quad to the camera
   fadeQuad.position.copy(camera.position);
   fadeQuad.quaternion.copy(camera.quaternion);
   fadeQuad.translateZ(-0.3);
@@ -102,9 +95,9 @@ function updateFadeQuad() {
 // Scene registry: maps portal IDs to scene classes
 const SCENE_MAP = {
   tutorial: TutorialScene,
-  l1: LevelOneScene, // F-004b — wired below via SCENE_MAP entry
+  l1: LevelOneScene,
   l2: null, // F-005
-  l3: null, // F-006
+  l3: LevelThreeScene, // F-006
 };
 
 function registerScene(id, SceneClass) {
@@ -131,7 +124,6 @@ function loadScene(sceneIdOrClass) {
   controller1.userData.held = null;
   desktopHeld = null;
 
-  // Synchronous scene switch (no transition)
   if (activeScene) activeScene.destroy();
   activeScene = new SceneClass({ scene, player, renderer, camera });
   activeScene.init();
@@ -156,9 +148,6 @@ function loadScene(sceneIdOrClass) {
   grabbables = activeScene.getGrabbables();
   if (activeScene.enableSkipShortcut) activeScene.enableSkipShortcut();
 
-  // Apply the scene's preferred spawn (player room-origin + desktop camera).
-  // VR overrides camera each frame from headset pose, so player.position is
-  // what positions the user in world; camera.position only matters in 2D.
   if (activeScene.spawn) {
     if (activeScene.spawn.player) player.position.fromArray(activeScene.spawn.player);
     if (activeScene.spawn.camera) camera.position.fromArray(activeScene.spawn.camera);
@@ -265,8 +254,6 @@ function buildController(index) {
   line.scale.z = 5;
   controller.add(line);
 
-  controller.addEventListener('selectstart', () => onSelectStart(controller));
-  controller.addEventListener('selectend', () => onSelectEnd(controller));
   controller.addEventListener('squeezestart', () => { controller.userData.teleporting = true; });
   controller.addEventListener('squeezeend', () => {
     controller.userData.teleporting = false;
@@ -308,6 +295,19 @@ function onSelectEnd(controller) {
 
 const controller0 = buildController(0);
 const controller1 = buildController(1);
+
+controller0.addEventListener('selectstart', () => onSelectStart(controller0));
+controller0.addEventListener('selectend', () => onSelectEnd(controller0));
+controller1.addEventListener('selectstart', () => onSelectStart(controller1));
+controller1.addEventListener('selectend', () => onSelectEnd(controller1));
+
+const raycaster = new THREE.Raycaster();
+const teleportMarker = new THREE.Mesh(
+  new THREE.RingGeometry(0.18, 0.22, 32).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0x06d6a0, transparent: true, opacity: 0.85 })
+);
+teleportMarker.visible = false;
+scene.add(teleportMarker);
 
 function updateTeleport(controller) {
   if (!controller.userData.teleporting) return;
@@ -382,7 +382,6 @@ renderer.domElement.addEventListener('mousedown', (e) => {
     -((e.clientY - rect.top) / rect.height) * 2 + 1,
   );
 
-  // Try grab first
   const rc = new THREE.Raycaster();
   rc.setFromCamera(mouse, camera);
   const hits = rc.intersectObjects(grabbables, true);
@@ -396,7 +395,6 @@ renderer.domElement.addEventListener('mousedown', (e) => {
     }
   }
 
-  // No grabbable hit — forward click to active scene (for hub portal clicks)
   if (activeScene && activeScene._desktopClick !== undefined) {
     activeScene._desktopClick = mouse;
   }
@@ -494,9 +492,6 @@ async function runPostSurvey() {
 
 function startExperience() {
   animating = true;
-  // Start in GameHub — tutorial is accessible from hub. L1 is wired into
-  // SCENE_MAP, so the hub's portal selection drives the transition; no
-  // bespoke onComplete chain is needed here (F-004b).
   loadScene(GameHubScene);
   _syncHubProgress();
   renderer.render(scene, camera);
@@ -504,5 +499,5 @@ function startExperience() {
 }
 
 // ---- Boot: pre-survey → hub → levels → finish → post-survey ---------------
-console.log('van-der-view F-004a game hub loaded. WebXR ready:', 'xr' in navigator);
+console.log('van-der-view loaded. WebXR ready:', 'xr' in navigator);
 runPreSurvey();

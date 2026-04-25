@@ -5,7 +5,7 @@ import { LIKERT_SCALE, LIKERT_LABELS } from './survey-questions.js';
 
 let overlayEl = null;
 
-function createOverlay() {
+export function createOverlay() {
   const el = document.createElement('div');
   el.id = 'survey-overlay';
   el.style.cssText = `
