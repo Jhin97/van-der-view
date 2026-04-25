@@ -46,9 +46,15 @@ const PROTEIN_COLOR = 0x88aaff;
 // = 0.015 this is 0.09 m world = ~ a fist's reach.
 const DOCK_TOLERANCE = 6.0;
 
-const PED_RADIUS = 0.7;
-const PED_ARC    = Math.PI * 0.55;
-const PED_HEIGHT = 0.85;
+// Pedestal arc layout — placed in front of the user but well clear of the
+// protein pivot (which sits at z=-0.8). Arc Z anchored at +0.5 puts the
+// ligand pedestals on the user's side of the room rather than embedded in
+// the protein hull.
+const PED_RADIUS    = 0.55;
+const PED_ARC       = Math.PI * 0.55;
+const PED_HEIGHT    = 0.85;
+const PED_ARC_Z_BASE = 0.50;
+const PED_ARC_Z_DEPTH = 0.25;
 
 const LIGAND_HANDHELD_SCALE = 0.018; // ligand GLB Å → world m
 
@@ -217,7 +223,7 @@ export default class LevelTwoScene {
       const t = ligands.length === 1 ? 0.5 : i / (ligands.length - 1);
       const angle = -PED_ARC / 2 + PED_ARC * t;
       const x = Math.sin(angle) * PED_RADIUS;
-      const z = -0.2 - Math.cos(angle) * 0.30;
+      const z = PED_ARC_Z_BASE - Math.cos(angle) * PED_ARC_Z_DEPTH;
 
       const group = new THREE.Group();
       group.position.set(x, 0, z);
