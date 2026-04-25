@@ -1,0 +1,71 @@
+name: Bug
+description: Report something that does not work as expected
+title: "[bug]: "
+labels:
+  - type:bug
+  - status:needs-triage
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Step-by-step instructions to reproduce.
+      placeholder: |
+        1. Load PDB 1AKE
+        2. Click the rotate gizmo
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: dropdown
+    id: team
+    attributes:
+      label: Team
+      description: Which team owns the affected area? (becomes the team:* label)
+      options:
+        - frontend
+        - backend
+        - data
+        - infra
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - p2
+        - p1
+        - p0
+      default: 0
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser / OS / build commit, anything relevant.

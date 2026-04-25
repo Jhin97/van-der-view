@@ -1,0 +1,67 @@
+name: Feature
+description: Propose a new feature or capability
+title: "[feature]: "
+labels:
+  - type:feature
+  - status:needs-triage
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing what this feature is and why it's needed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkbox list of conditions that must be true for this issue to close. The leader reads these when reviewing the PR.
+      placeholder: |
+        - [ ] User can rotate the structure with mouse drag
+        - [ ] Rotation persists across selection changes
+        - [ ] Reset button returns to identity orientation
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: team
+    attributes:
+      label: Team
+      description: Which team owns this work? (becomes the team:* label)
+      options:
+        - frontend
+        - backend
+        - data
+        - infra
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - p2
+        - p1
+        - p0
+      default: 0
+    validations:
+      required: true
+
+  - type: input
+    id: depends_on
+    attributes:
+      label: Depends on
+      description: Comma-separated issue numbers that must close before this one can start (e.g. "#12, #15"). Leave blank if none.
+      placeholder: "#12, #15"
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes
+      description: Mockups, links, edge cases, anything else.
