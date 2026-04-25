@@ -4,6 +4,20 @@ dist
 *.log
 .DS_Store
 
+# Editor temp files
+.idea/
+.vscode/
+*.swp
+
+# Environment / secrets (do not commit)
+.env
+.env.local
+.env.*.local
+
+# Agent tooling local artefacts
+.claude/
+.omc/
+
 # F-002 pipeline intermediate artifacts
 pipelines/data/
 pipelines/node_modules/
