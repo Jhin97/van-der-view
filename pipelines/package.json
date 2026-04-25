@@ -4,7 +4,7 @@
   "private": true,
   "description": "Node-side mesh tooling for the F-002 asset pipeline (obj2gltf + draco compression).",
   "dependencies": {
-    "obj2gltf": "^4.0.0",
+    "obj2gltf": "^3.2.0",
     "gltf-pipeline": "^4.1.0"
   },
   "scripts": {

@@ -13,17 +13,19 @@
     "effect-size": "node scripts/effect-size.mjs",
     "tunnel": "node scripts/quest-tunnel.mjs",
     "mirror": "node scripts/quest-mirror.mjs",
-    "quest": "node scripts/quest-tunnel.mjs && node scripts/quest-mirror.mjs"
+    "quest": "node scripts/quest-tunnel.mjs && node scripts/quest-mirror.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "vite": "^5.4.10",
-    "vite-plugin-mkcert": "^1.17.6"
+    "vite-plugin-mkcert": "^1.17.6",
+    "vitest": "^1.6.0"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
     "cors": "^2.8.5",
     "express": "^4.21.1",
-    "three": "^0.169.0",
-    "ws": "^8.18.0"
+    "three": "^0.169.0"
   }
 }
