@@ -442,19 +442,22 @@ export default class TutorialScene {
         break;
 
       case STATES.WAIT_GRAB:
+        // Either grab (trigger) or just push the molecule with the thumbstick.
+        // Either path advances to WAIT_SNAP; we also auto-advance after 5 s so
+        // a thumbstick-only user is never stuck waiting for a grab.
         if (isHeld) this._enterState(STATES.GRABBED);
+        else if (this.stateTime > 5000) this._enterState(STATES.WAIT_SNAP);
         this._checkTimeout(STATES.WAIT_GRAB);
         break;
 
       case STATES.GRABBED:
-        // Auto-advance handled by timer
+        // Auto-advance handled by timer (set in _enterState)
         break;
 
       case STATES.WAIT_SNAP:
-        if (!isHeld) {
-          this._enterState(STATES.WAIT_GRAB);
-          return;
-        }
+        // No isHeld kick-back — the user may push the ligand onto the ghost
+        // either by hand-grab or thumbstick. Snap fires on positional overlap
+        // alone so a release-mid-drag (or pure-thumbstick) flow still works.
         if (distToGhost < TARGET_OVERLAP_DIST) {
           this._enterState(STATES.SNAPPED);
         }
