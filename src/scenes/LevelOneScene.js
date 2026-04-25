@@ -6,15 +6,19 @@
 
 import * as THREE from 'three';
 import { loadGLB, loadJSON, extractAtomPositions } from '../lib/asset-loader.js';
-import { computeScore } from '../lib/scoring.js';
+import { computeScore, BEST_POSE } from '../lib/scoring.js';
 import { buildReadout } from '../ui/score-readout.js';
 import { buildNarrativePanel } from '../ui/narrative-panel.js';
 
 const ASSET_BASE = '/assets/v1';
 const NARRATIVE_PATH = '/src/data/l1-narrative.json';
-// Ligand spawns 15 Å away from pocket — far enough that it doesn't overlap
-// the protein at start, close enough that the user can drag it in.
-const SPAWN_OFFSET = new THREE.Vector3(15.0, 4.0, 0.0);
+// Ligand spawns 50 Å away from the pocket centre — clear of the protein's
+// bounding sphere (~25 Å radius from active site). User pulls the ligand
+// in across that gap.
+const SPAWN_OFFSET = new THREE.Vector3(50.0, 10.0, 0.0);
+// Best-pose judgment range — relax 30 % beyond the kernel's strict
+// `BEST_POSE.distance` so docking is forgiving in VR.
+const BEST_POSE_RELAX = 1.30;
 // Material colours (light blue protein, bright green ligand, semi-transparent
 // ghost target). Picked for high contrast in VR's typical dim scene.
 const PROTEIN_COLOR = 0x88aaff;
@@ -313,7 +317,15 @@ export default class LevelOneScene {
     this.readout.update(result);
     this.narrativePanel.update(dt, camera);
 
-    if (result.isBestPose && !this.bestPoseFired) {
+    // Relaxed best-pose: kernel's strict `BEST_POSE.distance` (3 Å) is
+    // hard to nail in VR, widen by `BEST_POSE_RELAX` while keeping the
+    // strict H-bond requirement so the chemistry is still earned.
+    const hBondHitsCount = result.components?.hBondHits ?? 0;
+    const relaxedBestPose =
+      result.rawDistance < BEST_POSE.distance * BEST_POSE_RELAX &&
+      hBondHitsCount >= BEST_POSE.hBondHits;
+
+    if ((result.isBestPose || relaxedBestPose) && !this.bestPoseFired) {
       this.bestPoseFired = true;
       this.bestPoseFireTime = this.dtSinceInit;
       this.readout.showBadge();
