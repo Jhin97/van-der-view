@@ -3,21 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>van-der-view | WebXR scaffold (F-001)</title>
+    <title>van-der-view | Tutorial Mode (F-003)</title>
     <style>
       html, body { margin: 0; padding: 0; overflow: hidden; background: #0a0a14; color: #e0e0e0; font-family: ui-sans-serif, system-ui, sans-serif; }
       #info { position: fixed; top: 12px; left: 12px; max-width: 420px; line-height: 1.4; font-size: 13px; background: rgba(0,0,0,0.55); padding: 10px 14px; border-radius: 8px; pointer-events: none; z-index: 100; }
       #info h1 { margin: 0 0 4px 0; font-size: 14px; letter-spacing: 0.04em; }
       #info code { background: rgba(255,255,255,0.08); padding: 1px 4px; border-radius: 3px; }
+      #desktop-hint { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); padding: 8px 16px; border-radius: 8px; font-size: 12px; pointer-events: none; z-index: 100; }
       canvas { display: block; }
     </style>
   </head>
   <body>
     <div id="info">
-      <h1>van-der-view · F-001</h1>
-      <div>Vite + Three.js + WebXR scaffold. Use a WebXR-capable browser (Quest Browser).</div>
-      <div style="margin-top:6px">Controls in VR: <code>thumbstick</code> teleport · <code>trigger</code> grab cubes · hand tracking auto-detected.</div>
+      <h1>van-der-view &middot; F-003 Tutorial</h1>
+      <div>Tutorial mode: learn grab &rarr; rotate &rarr; snap-to-pocket.</div>
+      <div style="margin-top:6px">VR: <code>trigger</code> grab &middot; <code>thumbstick</code> move &middot; <code>squeeze</code> teleport</div>
     </div>
+    <div id="desktop-hint">Desktop: <code>WASD</code> move &middot; <code>right-click drag</code> look &middot; <code>left-click drag</code> grab molecule &middot; <code>Space</code> skip step</div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
