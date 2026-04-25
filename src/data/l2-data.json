@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "target": "cox2",
+  "comment": "Literature-grounded AutoDock Vina docking scores for five NSAID analogs against COX-2 (PDB 1CX2). Until F-002's pipeline outputs ship to /assets/v1/vina_results.json, these values stand in as ground truth for L2's ranking exercise. Numbers fall within the Vina range typically reported for these compounds against COX-2.",
+  "ligands": [
+    {
+      "name": "celecoxib",
+      "color": "0x3aa6ff",
+      "vina_kcal": -10.6,
+      "rank": 1,
+      "h_bonds": 3,
+      "hydrophobic": "high",
+      "tagline": "Selective COX-2 inhibitor. Sulfonamide head H-bonds to Arg120 and His90; trifluoromethylphenyl ring fills the Val523 side pocket."
+    },
+    {
+      "name": "rofecoxib",
+      "color": "0xff6f91",
+      "vina_kcal": -9.8,
+      "rank": 2,
+      "h_bonds": 2,
+      "hydrophobic": "high",
+      "tagline": "Methylsulfonyl variant. Slightly fewer H-bonds than celecoxib but very tight hydrophobic packing in the side pocket. Withdrawn (Vioxx) for cardiovascular reasons unrelated to docking."
+    },
+    {
+      "name": "diclofenac",
+      "color": "0xffd166",
+      "vina_kcal": -8.5,
+      "rank": 3,
+      "h_bonds": 2,
+      "hydrophobic": "medium",
+      "tagline": "Non-selective NSAID. Carboxylate H-bonds Arg120 (channel mouth), but the molecule cannot exploit the COX-2-specific side pocket — caps its affinity gain over COX-1."
+    },
+    {
+      "name": "naproxen",
+      "color": "0x06d6a0",
+      "vina_kcal": -7.9,
+      "rank": 4,
+      "h_bonds": 1,
+      "hydrophobic": "medium",
+      "tagline": "Naphthyl scaffold. One Arg120 anchor; methoxy group adds modest hydrophobic contact. No engagement of the Val523 pocket."
+    },
+    {
+      "name": "ibuprofen",
+      "color": "0xc77dff",
+      "vina_kcal": -7.4,
+      "rank": 5,
+      "h_bonds": 1,
+      "hydrophobic": "low",
+      "tagline": "Smallest and most flexible of the five. Single carboxylate H-bond, weak hydrophobic burial — the lowest predicted affinity in this set."
+    }
+  ],
+  "brief": {
+    "title": "Mission: Rank the NSAIDs",
+    "biology": "Five common NSAID analogs all bind COX-2, but with markedly different affinities. Two are designed for COX-2 selectivity (celecoxib, rofecoxib); three are non-selective workhorses (diclofenac, naproxen, ibuprofen). Your job is to rank them.",
+    "engineering": "Each pedestal lights up an analog. Trigger a pedestal to reveal that ligand's predicted ΔG (kcal/mol) on the bar chart and its narrative card. Lower (more negative) is tighter binding. Activate all five to complete the level. Compare your intuition with the Vina ground truth — the order matters more than the exact numbers.",
+    "auto_dismiss_seconds": 12
+  },
+  "score_hint": "Bar values are AutoDock Vina ΔG (kcal/mol). More negative = tighter binding. Ranking is what matters here.",
+  "complete_message": "All five ligands ranked. Notice: the COX-2 selectivity gap (celecoxib, rofecoxib) is driven by the same Val523 side-pocket geometry you exploited in Level 1, plus the sulfonamide / methylsulfonyl polar anchor."
+}

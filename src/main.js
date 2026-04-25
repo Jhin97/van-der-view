@@ -5,6 +5,7 @@ import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import TutorialScene from './scenes/TutorialScene.js';
 import GameHubScene from './scenes/GameHubScene.js';
 import LevelOneScene from './scenes/LevelOneScene.js';
+import LevelTwoScene from './scenes/LevelTwoScene.js';
 import { PRE_QUESTIONS, POST_QUESTIONS } from './survey-questions.js';
 import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from './survey-ui.js';
 
@@ -103,7 +104,7 @@ function updateFadeQuad() {
 const SCENE_MAP = {
   tutorial: TutorialScene,
   l1: LevelOneScene, // F-004b — wired below via SCENE_MAP entry
-  l2: null, // F-005
+  l2: LevelTwoScene, // F-005
   l3: null, // F-006
 };
 
