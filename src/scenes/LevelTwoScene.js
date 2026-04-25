@@ -671,9 +671,51 @@ export default class LevelTwoScene {
       level: 'L2',
       ts: Date.now(),
     }]);
+    // No auto-transition: surface a persistent "Trigger to return" prompt
+    // once the success-card fade-out finishes; user dismisses on their own.
     this._completeTimer = setTimeout(() => {
-      if (this.onComplete) this.onComplete();
-    }, 3500);
+      this._showReturnPrompt();
+    }, 3300);
+  }
+
+  _showReturnPrompt() {
+    if (this._returnPrompt) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024; canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(8, 12, 28, 0.92)';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, 1024, 256, 28);
+    ctx.fill();
+    ctx.fillStyle = '#06d6a0';
+    ctx.font = 'bold 64px ui-sans-serif, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Pull TRIGGER to return', 512, 100);
+    ctx.fillStyle = '#aaaacc';
+    ctx.font = '36px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillText('to the level menu', 512, 170);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.8, 0.20),
+      new THREE.MeshBasicMaterial({
+        map: tex, transparent: true, depthTest: false, depthWrite: false,
+      })
+    );
+    mesh.position.set(0, -0.15, -1.2);
+    mesh.renderOrder = 999;
+    this.ctx.camera.add(mesh);
+    this._returnPrompt = mesh;
+  }
+
+  // Public hook used by main.js's onSelectStart fallback (same contract as
+  // GameHubScene._onControllerClick): if all five ligands are docked and
+  // the user pulls trigger anywhere, return them to the level menu.
+  _onControllerClick(/* controller */) {
+    if (this.completed && this.onComplete) {
+      this.onComplete();
+    }
   }
 
   _handleLeftA(controllers) {
@@ -805,6 +847,14 @@ export default class LevelTwoScene {
       this.successCard.parent.remove(this.successCard);
       if (this.successCard.geometry) this.successCard.geometry.dispose();
       if (this.successCard.material) this.successCard.material.dispose();
+    }
+    if (this._returnPrompt?.parent) {
+      this._returnPrompt.parent.remove(this._returnPrompt);
+      if (this._returnPrompt.geometry) this._returnPrompt.geometry.dispose();
+      if (this._returnPrompt.material) {
+        if (this._returnPrompt.material.map) this._returnPrompt.material.map.dispose();
+        this._returnPrompt.material.dispose();
+      }
     }
 
     for (const obj of this.objects) {

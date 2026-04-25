@@ -6,7 +6,7 @@ import TutorialScene from './scenes/TutorialScene.js';
 import GameHubScene from './scenes/GameHubScene.js';
 import LevelOneScene from './scenes/LevelOneScene.js';
 import LevelTwoScene from './scenes/LevelTwoScene.js';
-import LevelThreeScene from './scenes/LevelThreeScene.js';
+// L3 cut from MVP — see GameHubScene.LEVEL_DEFS / SCENE_MAP below.
 import { PRE_QUESTIONS, POST_QUESTIONS } from './survey-questions.js';
 import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from './survey-ui.js';
 
@@ -99,7 +99,8 @@ const SCENE_MAP = {
   tutorial: TutorialScene,
   l1: LevelOneScene,
   l2: LevelTwoScene, // F-005
-  l3: LevelThreeScene, // F-006
+  // l3 dropped from the MVP scope — keep the slot null so the hub menu
+  // entry (if any leaks back in) just no-ops.
 };
 
 function registerScene(id, SceneClass) {

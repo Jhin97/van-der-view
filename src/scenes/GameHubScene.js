@@ -11,10 +11,10 @@ const LEVEL_DEFS = [
   { id: 'tutorial', label: 'Tutorial',              color: '#06d6a0' },
   { id: 'l1',       label: 'Level 1 — COX-2 Dock',  color: '#3aa6ff' },
   { id: 'l2',       label: 'Level 2 — Rank NSAIDs', color: '#ffd166' },
-  { id: 'l3',       label: 'Level 3 — Selectivity', color: '#ff6f91' },
+  // L3 (Selectivity) cut from MVP scope.
 ];
 
-const UNLOCK_ORDER = ['tutorial', 'l1', 'l2', 'l3'];
+const UNLOCK_ORDER = ['tutorial', 'l1', 'l2'];
 
 const CANVAS_W = 768;
 const CANVAS_H = 512;
