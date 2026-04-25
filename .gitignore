@@ -4,3 +4,9 @@ dist
 *.log
 .DS_Store
 data/
+
+# F-002 pipeline intermediate artifacts
+pipelines/data/
+pipelines/node_modules/
+pipelines/__pycache__/
+pipelines/.pytest_cache/
