@@ -555,6 +555,36 @@ export default class TutorialScene {
     });
   }
 
+  // Thumbstick → object translation (player is locked in space).
+  // Forwarded from main.js's handleThumbstickInput. Both thumbsticks
+  // contribute different axes:
+  //   left  X  → world X   (right/left)
+  //   left  Y  → world Z   (forward/back; push forward = away from camera)
+  //   right Y  → world Y   (up/down)
+  //
+  // Skipped once the ligand is locked (post-snap) so the user can't yank
+  // it back out of the dock with the stick.
+  applyThumbstickInput({ leftX, leftY, rightY }, dt) {
+    if (!this.ligandGroup) return;
+    if (!this.ligandGroup.userData.grabbable) return;
+
+    const speed = 0.6; // m/s at full deflection
+    const k = (dt / 1000) * speed;
+
+    // World-space translation; ligand may be parented to a controller while
+    // grabbed, so go through getWorldPosition + parent.worldToLocal so the
+    // axes always feel global.
+    const worldPos = new THREE.Vector3();
+    this.ligandGroup.getWorldPosition(worldPos);
+    worldPos.x += leftX * k;
+    worldPos.z += leftY * k;       // push forward (Y=-1) → -z, toward the pocket
+    worldPos.y -= rightY * k;      // push up (Y=-1) → +y
+    if (this.ligandGroup.parent) {
+      this.ligandGroup.parent.worldToLocal(worldPos);
+    }
+    this.ligandGroup.position.copy(worldPos);
+  }
+
   _ligandToPocketDist() {
     return this.ligandGroup.position.distanceTo(this.pocketCenter);
   }
