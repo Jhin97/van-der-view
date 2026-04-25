@@ -21,15 +21,19 @@ const POCKET_RADIUS   = 0.25;
 const MARKER_RADIUS   = 0.035;
 const LIGAND_ARM_R    = 0.03;
 const LIGAND_BOND_R   = 0.012;
-const SNAP_DIST       = 0.10;
-const ALIGN_THRESHOLD = 0.65;
-const HBOND_SHOW_DIST = 0.18;
+// Ghost-overlay UX:
+// A semi-transparent target ghost of the ligand sits at the docked pose.
+// User just has to overlay their held ligand onto the ghost — when world-
+// space distance between centres is below TARGET_OVERLAP_DIST, snap fires.
+// Rotation is corrected by the snap animation, so the user doesn't have
+// to nail orientation manually.
+const TARGET_OVERLAP_DIST = 0.12;   // 12 cm tolerance volume around target
+const HBOND_SHOW_DIST = 0.22;
 const CLASH_DIST      = 0.06;
 
 // Per-state timeouts (ms) before a progressive hint fires
 const TIMEOUTS = {
   [STATES.WAIT_GRAB]:   12000,
-  [STATES.WAIT_ROTATE]: 18000,
   [STATES.WAIT_SNAP]:   18000,
 };
 
@@ -56,6 +60,7 @@ export default class TutorialScene {
   init() {
     this._buildPocket();
     this._buildLigand();
+    this._buildGhostLigand();
     this._buildForceField();
     this._buildPrompt();
     this._buildArrow();
@@ -201,6 +206,55 @@ export default class TutorialScene {
     this.grabbables.push(group);
   }
 
+  // ---- ghost ligand (visual target) ---------------------------------------
+
+  // The ghost is a low-opacity duplicate of the ligand, sat at the docked
+  // pose. The user's job is simply to overlay their held copy onto this.
+  // Geometry-wise the arms of the original ligand at identity rotation
+  // already coincide with the H-bond markers (both _buildLigand and
+  // _buildPocket use the same yOff / rAtY / angles), so the ghost goes at
+  // pocketCenter with identity orientation.
+  _buildGhostLigand() {
+    const ghost = this.ligandGroup.clone(true);
+    ghost.traverse((c) => {
+      if (!c.material) return;
+      c.material = c.material.clone();
+      c.material.transparent = true;
+      c.material.opacity = 0.28;
+      c.material.depthWrite = false;
+      if (c.material.emissive) {
+        c.material.emissive.setHex(0x06d6a0);
+        c.material.emissiveIntensity = 0.5;
+      }
+    });
+    ghost.userData.grabbable = false;
+    ghost.userData.tutorialLigand = false;
+    ghost.position.copy(this.pocketCenter);
+    ghost.quaternion.identity();
+    this.ghostLigand = ghost;
+    this.ghostTargetPos = this.pocketCenter.clone();
+    this.ghostTargetQuat = ghost.quaternion.clone();
+    this._add(ghost);
+  }
+
+  _hideGhost() {
+    if (!this.ghostLigand) return;
+    // Fade out over 350 ms, then hide.
+    const start = performance.now();
+    const ghost = this.ghostLigand;
+    const fade = () => {
+      const t = Math.min(1, (performance.now() - start) / 350);
+      ghost.traverse((c) => {
+        if (c.material && c.material.opacity !== undefined) {
+          c.material.opacity = 0.28 * (1 - t);
+        }
+      });
+      if (t < 1) requestAnimationFrame(fade);
+      else ghost.visible = false;
+    };
+    fade();
+  }
+
   // ---- force field overlay ------------------------------------------------
 
   _buildForceField() {
@@ -342,22 +396,14 @@ export default class TutorialScene {
         break;
 
       case STATES.GRABBED:
-        this._setPrompt('Great! Now rotate it to align the arms with the markers');
+        this._setPrompt('Move it onto the green ghost in the pocket');
         this._hideArrow();
-        // Auto-advance after 1.2s
-        this._autoAdvance(STATES.WAIT_ROTATE, 1200);
-        break;
-
-      case STATES.WAIT_ROTATE:
-        this._setPrompt('Rotate it so the arms match the pocket markers');
-        break;
-
-      case STATES.ROTATING:
-        this._setPrompt('Looking good! Keep aligning...');
+        // Auto-advance after a short beat so the user reads the prompt.
+        this._autoAdvance(STATES.WAIT_SNAP, 600);
         break;
 
       case STATES.WAIT_SNAP:
-        this._setPrompt('Move it into the pocket');
+        this._setPrompt('Overlay the molecule onto the green ghost');
         this._showArrow(this.pocketCenter);
         break;
 
@@ -386,12 +432,12 @@ export default class TutorialScene {
 
   _updateState(controllers, dt) {
     const isHeld = this._isLigandHeld(controllers);
-    const dist = this._ligandToPocketDist();
-    const alignment = this._alignmentScore();
+    // Distance check is now world-space distance between the held ligand
+    // and the ghost target — purely positional, no alignment math needed.
+    const distToGhost = this._ligandWorldDistTo(this.ghostTargetPos);
 
     switch (this.state) {
       case STATES.INTRO:
-        // Advance on trigger or after 3s
         if (this.stateTime > 3000) this._enterState(STATES.WAIT_GRAB);
         break;
 
@@ -404,41 +450,23 @@ export default class TutorialScene {
         // Auto-advance handled by timer
         break;
 
-      case STATES.WAIT_ROTATE:
-        if (!isHeld) {
-          // Dropped — go back to WAIT_GRAB gently
-          this._enterState(STATES.WAIT_GRAB);
-          return;
-        }
-        if (alignment > ALIGN_THRESHOLD * 0.5) this._enterState(STATES.ROTATING);
-        this._checkTimeout(STATES.WAIT_ROTATE);
-        break;
-
-      case STATES.ROTATING:
-        if (!isHeld) {
-          this._enterState(STATES.WAIT_GRAB);
-          return;
-        }
-        if (alignment > ALIGN_THRESHOLD) {
-          this._enterState(STATES.WAIT_SNAP);
-        } else if (alignment < ALIGN_THRESHOLD * 0.3) {
-          this._enterState(STATES.WAIT_ROTATE);
-        }
-        break;
-
       case STATES.WAIT_SNAP:
         if (!isHeld) {
           this._enterState(STATES.WAIT_GRAB);
           return;
         }
-        if (dist < SNAP_DIST && alignment > ALIGN_THRESHOLD) {
+        if (distToGhost < TARGET_OVERLAP_DIST) {
           this._enterState(STATES.SNAPPED);
         }
-        // If far away and poor alignment, nudge back
-        if (dist < SNAP_DIST && alignment < ALIGN_THRESHOLD * 0.5) {
-          this._setPrompt('Almost there! Rotate a bit more to align');
-        }
         this._checkTimeout(STATES.WAIT_SNAP);
+        break;
+
+      // WAIT_ROTATE and ROTATING are kept in STATES for backward-compat
+      // (skip-shortcut order array references them) but the user never
+      // enters them — overlay UX collapses to a single positioning step.
+      case STATES.WAIT_ROTATE:
+      case STATES.ROTATING:
+        this._enterState(STATES.WAIT_SNAP);
         break;
 
       case STATES.SNAPPED:
@@ -446,7 +474,6 @@ export default class TutorialScene {
         break;
     }
 
-    // Force-skip: both triggers held for 2s
     this._checkForceSkip(controllers, dt);
   }
 
@@ -482,24 +509,20 @@ export default class TutorialScene {
         }
         break;
 
-      case STATES.WAIT_ROTATE:
-        if (this.hintLevel >= 2) {
-          this._setPrompt('Twist your wrist to rotate the molecule');
-        }
-        if (this.hintLevel >= 3) {
-          // Auto-rotate the ligand slightly toward alignment
-          this._nudgeAlignment(0.02);
-        }
-        break;
-
       case STATES.WAIT_SNAP:
         if (this.hintLevel >= 2) {
           this._showArrow(this.pocketCenter);
-          this._setPrompt('Move the molecule toward the pocket');
+          this._setPrompt('Bring the molecule into the green ghost');
         }
         if (this.hintLevel >= 3) {
-          // Gently pull ligand toward pocket
-          this._nudgeTowardPocket(0.003);
+          // Make the ghost pulse so the target is unmissable.
+          if (this.ghostLigand) {
+            this.ghostLigand.traverse((c) => {
+              if (c.material && c.material.emissive) {
+                c.material.emissive.setHex(0xffd166);
+              }
+            });
+          }
         }
         break;
     }
@@ -534,6 +557,12 @@ export default class TutorialScene {
 
   _ligandToPocketDist() {
     return this.ligandGroup.position.distanceTo(this.pocketCenter);
+  }
+
+  _ligandWorldDistTo(worldTarget) {
+    const wp = new THREE.Vector3();
+    this.ligandGroup.getWorldPosition(wp);
+    return wp.distanceTo(worldTarget);
   }
 
   _alignmentScore() {
@@ -701,36 +730,108 @@ export default class TutorialScene {
   // ---- snap animation -----------------------------------------------------
 
   _startSnapAnimation() {
-    // Detach from controller if held, attach to scene
+    // Detach from controller and attach to scene so the target pose is
+    // fixed in world space.
     if (this.ligandGroup.parent !== this.ctx.scene) {
       this.ctx.scene.attach(this.ligandGroup);
     }
     this.snapAnim = {
       startPos: this.ligandGroup.position.clone(),
       startQuat: this.ligandGroup.quaternion.clone(),
-      targetPos: this.pocketCenter.clone(),
-      targetQuat: this._computeAlignmentQuaternion() || this.ligandGroup.quaternion.clone(),
+      targetPos: this.ghostTargetPos.clone(),
+      targetQuat: this.ghostTargetQuat.clone(),
       elapsed: 0,
       duration: 350,
     };
-    // Make ligand non-grabbable during snap
+    // Lock: not grabbable, not in active grab list. After snap the ligand
+    // stays put — no more wandering.
     this.ligandGroup.userData.grabbable = false;
+    const gi = this.grabbables.indexOf(this.ligandGroup);
+    if (gi !== -1) this.grabbables.splice(gi, 1);
+
+    // Positive feedback: fade the ghost out, haptic on both controllers,
+    // emissive flash on the now-locked ligand.
+    this._hideGhost();
+    this._snapHaptic();
+    this._snapVisualFlash();
+  }
+
+  _snapHaptic() {
+    const session = this.ctx.renderer.xr.getSession();
+    if (!session) return;
+    for (const src of session.inputSources) {
+      const a = src.gamepad?.hapticActuators?.[0];
+      a?.pulse(0.7, 80);
+    }
+  }
+
+  _snapVisualFlash() {
+    // Flash all ligand mesh emissives green for ~0.6s, then ease back to a
+    // higher resting intensity so the snapped ligand reads as "active".
+    this.ligandGroup.traverse((c) => {
+      if (c.material && c.material.emissive) {
+        c.userData._origEmissive = c.material.emissive.getHex();
+        c.userData._origEmissiveIntensity = c.material.emissiveIntensity ?? 0;
+        c.material.emissive.setHex(0x06d6a0);
+        c.material.emissiveIntensity = 1.4;
+      }
+    });
+    setTimeout(() => {
+      this.ligandGroup.traverse((c) => {
+        if (c.material && c.material.emissive && c.userData._origEmissive !== undefined) {
+          c.material.emissive.setHex(c.userData._origEmissive);
+          c.material.emissiveIntensity = Math.max(0.45, c.userData._origEmissiveIntensity);
+        }
+      });
+    }, 600);
+  }
+
+  _magneticAssist(dt, dist) {
+    // The ligand is parented to the holding controller while grabbed, so
+    // ligandGroup.position is in controller-local space. We must lerp in
+    // WORLD space and then convert back to local, otherwise the pull is
+    // inconsistent or invisible.
+    const target = this.pocketCenter;
+
+    // Falloff: stronger near the pocket center, gentler at the edge.
+    const t = Math.max(0, Math.min(1, 1 - dist / MAGNETIC_RADIUS));
+    const strength = MAGNETIC_PULL_BASE + (MAGNETIC_PULL_PEAK - MAGNETIC_PULL_BASE) * t;
+    const k = Math.min(1, (dt / 16) * strength);
+
+    // World-space lerp.
+    const worldPos = new THREE.Vector3();
+    this.ligandGroup.getWorldPosition(worldPos);
+    worldPos.lerp(target, k);
+    if (this.ligandGroup.parent) {
+      this.ligandGroup.parent.worldToLocal(worldPos);
+    }
+    this.ligandGroup.position.copy(worldPos);
+
+    // Rotation pull toward the best-alignment quaternion. _computeAlignmentQuaternion
+    // operates on world arm/marker directions so its output is a world-space
+    // delta rotation; applied to local quaternion this is an approximation
+    // (good enough when the holding controller has near-identity orientation
+    // relative to scene root).
+    const targetQuat = this._computeAlignmentQuaternion();
+    if (targetQuat) {
+      this.ligandGroup.quaternion.slerp(targetQuat, k);
+    }
   }
 
   _updateSnapAnim(dt) {
     const a = this.snapAnim;
     a.elapsed += dt;
     const t = Math.min(1, a.elapsed / a.duration);
-    // Ease out cubic
     const e = 1 - Math.pow(1 - t, 3);
     this.ligandGroup.position.lerpVectors(a.startPos, a.targetPos, e);
     this.ligandGroup.quaternion.slerpQuaternions(a.startQuat, a.targetQuat, e);
     if (t >= 1) {
       this.snapAnim = null;
-      // Snap feedback: pulse markers
+      // Marker pulse — slightly stronger than before so the docked state
+      // visibly settles.
       for (const marker of this.hbondMarkers) {
-        marker.material.emissiveIntensity = 1.5;
-        setTimeout(() => { marker.material.emissiveIntensity = 0.5; }, 400);
+        marker.material.emissiveIntensity = 1.8;
+        setTimeout(() => { marker.material.emissiveIntensity = 0.7; }, 500);
       }
     }
   }
