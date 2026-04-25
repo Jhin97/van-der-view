@@ -1,0 +1,11 @@
+# CODEOWNERS for van-der-view
+#
+# Populated once the project-plan MR lands the actual directory layout.
+# Map paths to GitHub teams/users like:
+#   /apps/web/        @Jhin97/frontend-team
+#   /services/api/    @Jhin97/backend-team
+#   /pipelines/       @Jhin97/data-team
+#   /infra/           @Jhin97/infra-team
+#
+# CODEOWNERS approvals are independent from the leader's review — both can
+# be required by branch protection.
