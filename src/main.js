@@ -3,6 +3,7 @@ import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import TutorialScene from './scenes/TutorialScene.js';
+import GameHubScene from './scenes/GameHubScene.js';
 import { PRE_QUESTIONS, POST_QUESTIONS } from './survey-questions.js';
 import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from './survey-ui.js';
 
@@ -74,10 +75,167 @@ const teleportMarker = new THREE.Mesh(
 teleportMarker.visible = false;
 scene.add(teleportMarker);
 
-// Active scene state
+// ---- Scene transition system -----------------------------------------------
+
 let activeScene = null;
 let grabbables = [];
 let animating = false;
+let transitioning = false;
+
+// Fade overlay for scene transitions
+const fadeGeo = new THREE.PlaneGeometry(2, 2);
+const fadeMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false });
+const fadeQuad = new THREE.Mesh(fadeGeo, fadeMat);
+fadeQuad.renderOrder = 999;
+fadeQuad.frustumCulled = false;
+scene.add(fadeQuad);
+
+function updateFadeQuad() {
+  // Pin the fade quad to the camera
+  fadeQuad.position.copy(camera.position);
+  fadeQuad.quaternion.copy(camera.quaternion);
+  fadeQuad.translateZ(-0.3);
+}
+
+// Scene registry: maps portal IDs to scene classes
+const SCENE_MAP = {
+  tutorial: TutorialScene,
+  l1: null, // F-004b will register a scene here
+  l2: null, // F-005
+  l3: null, // F-006
+};
+
+function registerScene(id, SceneClass) {
+  SCENE_MAP[id] = SceneClass;
+}
+
+function loadScene(sceneIdOrClass) {
+  let SceneClass;
+  let sceneId = null;
+
+  if (typeof sceneIdOrClass === 'string') {
+    sceneId = sceneIdOrClass;
+    SceneClass = SCENE_MAP[sceneId];
+    if (!SceneClass) {
+      console.warn(`[scene] No scene registered for "${sceneId}"`);
+      return;
+    }
+  } else {
+    SceneClass = sceneIdOrClass;
+  }
+
+  // Clear held references before destroying scene to prevent ghost objects
+  controller0.userData.held = null;
+  controller1.userData.held = null;
+  desktopHeld = null;
+
+  // Synchronous scene switch (no transition)
+  if (activeScene) activeScene.destroy();
+  activeScene = new SceneClass({ scene, player, renderer });
+  activeScene.init();
+
+  // Wire level completion → hub return
+  if (activeScene.onComplete !== undefined) {
+    activeScene.onComplete = () => {
+      if (sceneId) markProgress(sceneId);
+      transitionToHub();
+    };
+  }
+
+  // Wire hub portal selection → scene transitions
+  if (activeScene.onSelectPortal !== undefined) {
+    activeScene.onSelectPortal = (portalId) => {
+      if (SCENE_MAP[portalId]) {
+        transitionToScene(portalId);
+      }
+    };
+  }
+
+  grabbables = activeScene.getGrabbables();
+  if (activeScene.enableSkipShortcut) activeScene.enableSkipShortcut();
+}
+
+function transitionToScene(sceneId) {
+  if (transitioning) return;
+  transitioning = true;
+  _fadeOut(300).then(() => {
+    loadScene(sceneId);
+    renderer.render(scene, camera);
+    _fadeIn(300).then(() => {
+      transitioning = false;
+    });
+  });
+}
+
+function transitionToHub() {
+  if (transitioning) return;
+  transitioning = true;
+  _fadeOut(300).then(() => {
+    loadScene(GameHubScene);
+    _syncHubProgress();
+    // Reset player to hub entry point
+    player.position.set(0, 0, 0);
+    camera.position.set(0, 1.6, 3);
+    renderer.render(scene, camera);
+    _fadeIn(300).then(() => {
+      transitioning = false;
+    });
+  });
+}
+
+function _fadeOut(duration) {
+  return _animateFade(0, 1, duration);
+}
+
+function _fadeIn(duration) {
+  return _animateFade(1, 0, duration);
+}
+
+function _animateFade(from, to, duration) {
+  return new Promise(resolve => {
+    const start = performance.now();
+    function step() {
+      const t = Math.min(1, (performance.now() - start) / duration);
+      fadeMat.opacity = from + (to - from) * t;
+      updateFadeQuad();
+      renderer.render(scene, camera);
+      if (t < 1) requestAnimationFrame(step);
+      else resolve();
+    }
+    step();
+  });
+}
+
+// ---- Progress tracking -----------------------------------------------------
+
+const progress = loadProgress();
+
+function loadProgress() {
+  try {
+    const saved = sessionStorage.getItem('vdv-progress');
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return { tutorial: false, l1: false, l2: false, l3: false };
+}
+
+function saveProgress() {
+  try { sessionStorage.setItem('vdv-progress', JSON.stringify(progress)); } catch {}
+}
+
+function markProgress(sceneId) {
+  progress[sceneId] = true;
+  saveProgress();
+}
+
+function _syncHubProgress() {
+  if (activeScene instanceof GameHubScene) {
+    Object.keys(progress).forEach(k => {
+      if (progress[k]) activeScene.markComplete(k);
+    });
+  }
+}
+
+// ---- XR controllers --------------------------------------------------------
 
 function buildController(index) {
   const controller = renderer.xr.getController(index);
@@ -178,16 +336,6 @@ function handleThumbstickTeleport() {
   }
 }
 
-// ---- Scene manager --------------------------------------------------------
-
-function loadScene(SceneClass) {
-  if (activeScene) activeScene.destroy();
-  activeScene = new SceneClass({ scene, player, renderer });
-  activeScene.init();
-  grabbables = activeScene.getGrabbables();
-  if (activeScene.enableSkipShortcut) activeScene.enableSkipShortcut();
-}
-
 // ---- Keyboard fallback for 2D testing -------------------------------------
 
 const keys = {};
@@ -226,6 +374,8 @@ renderer.domElement.addEventListener('mousedown', (e) => {
     ((e.clientX - rect.left) / rect.width) * 2 - 1,
     -((e.clientY - rect.top) / rect.height) * 2 + 1,
   );
+
+  // Try grab first
   const rc = new THREE.Raycaster();
   rc.setFromCamera(mouse, camera);
   const hits = rc.intersectObjects(grabbables, true);
@@ -235,7 +385,13 @@ renderer.domElement.addEventListener('mousedown', (e) => {
     if (obj.userData.grabbable) {
       desktopHeld = obj;
       desktopHeld._dragOffset = obj.position.clone().sub(camera.position);
+      return;
     }
+  }
+
+  // No grabbable hit — forward click to active scene (for hub portal clicks)
+  if (activeScene && activeScene._desktopClick !== undefined) {
+    activeScene._desktopClick = mouse;
   }
 });
 
@@ -287,11 +443,12 @@ renderer.setAnimationLoop((time) => {
   handleThumbstickTeleport();
   handleDesktopFallback(dt);
 
-  if (activeScene) {
+  if (activeScene && !transitioning) {
     activeScene.update(dt, [controller0, controller1]);
     grabbables = activeScene.getGrabbables();
   }
 
+  updateFadeQuad();
   renderer.render(scene, camera);
 });
 
@@ -300,7 +457,7 @@ if (!('xr' in navigator)) {
 }
 
 // Debug surface
-window.__VDV = { scene, renderer, camera, player };
+window.__VDV = { scene, renderer, camera, player, registerScene, progress };
 
 // ---- Survey flow ----------------------------------------------------------
 
@@ -329,11 +486,13 @@ async function runPostSurvey() {
 
 function startExperience() {
   animating = true;
-  loadScene(TutorialScene);
+  // Start in GameHub — tutorial is accessible from hub
+  loadScene(GameHubScene);
+  _syncHubProgress();
   renderer.render(scene, camera);
   createFinishButton(() => runPostSurvey());
 }
 
-// ---- Boot: pre-survey → tutorial → finish → post-survey -------------------
-console.log('van-der-view F-003 tutorial loaded. WebXR ready:', 'xr' in navigator);
+// ---- Boot: pre-survey → hub → levels → finish → post-survey ---------------
+console.log('van-der-view F-004a game hub loaded. WebXR ready:', 'xr' in navigator);
 runPreSurvey();
