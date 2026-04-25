@@ -38,6 +38,7 @@ export default class GameHubScene {
     this._buildPortals();
     this._buildProgressDisplay();
     this._buildPrompt();
+    this.spawn = { player: [0, 0, 0], camera: [0, 1.6, 3] };
   }
 
   update(dt, controllers) {
@@ -294,7 +295,7 @@ export default class GameHubScene {
     sprite.position.set(0, 2.5, -1.0);
     this._add(sprite);
     this.promptSprite = sprite;
-    this._setPrompt('Walk into a portal to enter');
+    this._setPrompt('Trigger or click a portal to enter');
   }
 
   _setPrompt(text) {
@@ -332,23 +333,8 @@ export default class GameHubScene {
   // ---- portal activation --------------------------------------------------
 
   _checkPortalActivation(controllers) {
-    // Check if player walks into any unlocked portal
-    const playerPos = new THREE.Vector3();
-    this.ctx.player.getWorldPosition(playerPos);
-
-    for (const p of this.portals) {
-      if (!this.isUnlocked(p.def.id)) continue;
-
-      const portalPos = new THREE.Vector3();
-      p.group.getWorldPosition(portalPos);
-      portalPos.y = playerPos.y; // horizontal distance only
-
-      const dist = playerPos.distanceTo(portalPos);
-      if (dist < 0.6) {
-        if (this.onSelectPortal) this.onSelectPortal(p.def.id);
-        return;
-      }
-    }
+    // Portals are click-only — walk-through proximity-trigger removed because
+    // accidental crossings during locomotion fired transitions unintentionally.
 
     // VR: point controller at portal frame + press trigger
     // Track select state to detect fresh presses (not held)
