@@ -66,9 +66,10 @@ export default class TutorialScene {
     this._buildArrow();
     this._buildFloorDecor();
     this._enterState(STATES.INTRO);
-    // Spawn ~1m from the pocket (which sits at z=-0.6) so the user can
-    // interact without walking.
-    this.spawn = { player: [0, 0, 0], camera: [0, 1.6, 0.4] };
+    // Pocket sits at (0, 1.0, -0.6) with radius 0.25 m. Spawn farther
+    // back so the pocket fills a comfortable angular size and the user
+    // isn't physically inside it.
+    this.spawn = { player: [0, 0, 0.8], camera: [0, 1.6, 1.2] };
   }
 
   update(dt, controllers) {

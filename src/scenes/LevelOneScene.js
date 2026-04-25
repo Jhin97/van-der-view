@@ -15,6 +15,15 @@ const NARRATIVE_PATH = '/src/data/l1-narrative.json';
 const SPAWN_OFFSET = new THREE.Vector3(0.6, 0.0, 0.0); // ≥ 6 Å along +x relative to pocket
 const TELEMETRY_INTERVAL_MS = 1000;
 const BEST_POSE_BADGE_FADE_MS = 5000;
+// PyMOL exports geometry in Å (1 unit = 1 Å). At unit Three scale a 5 nm
+// protein renders 50 m wide and the user is inside the molecule. Scale the
+// whole pivot down so the protein sits desk-sized in front of the user.
+// User can grip-bimanual to rescale.
+const PIVOT_SCALE = 0.025;
+// Grip gesture limits — see [[experience-vr-scene-transition-tutorial-snap-patterns-2026-04-25]]
+// + [[prior-art-nanome]] (bimanual scale is the muscle memory we steal).
+const PIVOT_SCALE_MIN = 0.005;
+const PIVOT_SCALE_MAX = 0.20;
 
 const TELEMETRY_ENDPOINT = '/api/telemetry';
 
@@ -48,6 +57,19 @@ export default class LevelOneScene {
     this.dtSinceInit = 0;
     this.redockCount = 0;
     this.lastButtons = { A: false, B: false }; // edge detection on left controller
+    // Two-handed grip gesture state — single grip = translate pivot,
+    // both grips = bimanual scale + translate (Nanome-style).
+    this._gripState = {
+      active: 0,                  // 0, 1, or 2
+      handStart: null,            // Vec3 when single-grip started
+      pivotPosStart: null,
+      pivotScaleStart: null,
+      bimanualDistStart: null,
+      bimanualMidStart: null,
+    };
+    // World-locked UI anchor (kept separate from pivot so brief / readout
+    // stay readable regardless of model scale).
+    this._uiWorldAnchor = new THREE.Vector3();
   }
 
   async init() {
@@ -71,11 +93,14 @@ export default class LevelOneScene {
 
     const pocketCenter = new THREE.Vector3(...pocket.pocket_center);
 
-    // Centre everything around pocket so the user starts looking at the action.
+    // Pivot holds the protein + ligand. Scale it down so the user sees the
+    // whole molecule in front of them rather than being inside it.
     const pivot = new THREE.Group();
     pivot.position.set(0, 1.0, -0.8); // 0.8 m forward of player at standing height
+    pivot.scale.setScalar(PIVOT_SCALE);
     this.ctx.scene.add(pivot);
     this.objects.push(pivot);
+    this._uiWorldAnchor.copy(pivot.position);
 
     const offsetMatrix = new THREE.Matrix4().makeTranslation(
       -pocketCenter.x, -pocketCenter.y, -pocketCenter.z
@@ -96,36 +121,32 @@ export default class LevelOneScene {
       quaternion: ligand.quaternion.clone(),
     };
 
-    // Score readout above the pocket (in pivot-local coords -> already centred at origin).
-    // Camera is null at init time; update() re-binds it once XR session starts.
+    // Score readout — world-locked, NOT inside pivot, so it stays full-size
+    // when the user rescales the protein with bimanual grip.
     this.readout = buildReadout({
       pocketCenter: { x: 0, y: 0, z: 0 },
       camera: null,
     });
-    pivot.add(this.readout.group);
+    this.readout.group.position.copy(this._uiWorldAnchor);
+    this.ctx.scene.add(this.readout.group);
+    this.objects.push(this.readout.group);
 
-    // Narrative panel
+    // Narrative panel — also world-locked. Skip residue side-notes for now;
+    // attaching them in pivot-local frame would also shrink them, and the
+    // task brief is the critical onboarding text.
     this.narrativePanel = buildNarrativePanel({
       pocketCenter: { x: 0, y: 0, z: 0 },
-      pocketAnnotation: {
-        ...pocket,
-        // Shift residue Cα to pivot-local frame
-        key_residues: (pocket.key_residues || []).map((r) => ({
-          ...r,
-          ca_xyz: [r.ca_xyz[0] - pocketCenter.x, r.ca_xyz[1] - pocketCenter.y, r.ca_xyz[2] - pocketCenter.z],
-          side_chain_centroid: [
-            r.side_chain_centroid[0] - pocketCenter.x,
-            r.side_chain_centroid[1] - pocketCenter.y,
-            r.side_chain_centroid[2] - pocketCenter.z,
-          ],
-        })),
-      },
+      pocketAnnotation: { ...pocket, key_residues: [] },
       narrative,
       scoreReadoutAnchor: { x: 0, y: 0.5, z: 0 },
     });
-    pivot.add(this.narrativePanel.group);
+    this.narrativePanel.group.position.copy(this._uiWorldAnchor);
+    this.ctx.scene.add(this.narrativePanel.group);
+    this.objects.push(this.narrativePanel.group);
 
     this.pivot = pivot;
+    // Spawn farther back so the user actually sees the whole protein.
+    this.spawn = { player: [0, 0, 1.0], camera: [0, 1.6, 1.6] };
     this.ready = true;
 
     // Snapshot current A/B state so a held button doesn't produce a phantom
@@ -253,6 +274,85 @@ export default class LevelOneScene {
     }
 
     this._handleLeftControllerButtons(controllers);
+    this._handleGripGestures(controllers);
+  }
+
+  _handleGripGestures(controllers) {
+    const session = this.ctx.renderer.xr.getSession();
+    if (!session) return;
+
+    let leftDown = false, rightDown = false;
+    let leftPos = null, rightPos = null;
+
+    let idx = 0;
+    for (const src of session.inputSources) {
+      if (!src.gamepad || !src.handedness) { idx++; continue; }
+      const gripPressed = !!src.gamepad.buttons?.[1]?.pressed; // index 1 = squeeze/grip
+      const ctrl = controllers[idx];
+      if (!ctrl) { idx++; continue; }
+      const pos = new THREE.Vector3();
+      ctrl.getWorldPosition(pos);
+      if (src.handedness === 'left') {
+        leftDown = gripPressed;
+        leftPos = pos;
+      } else if (src.handedness === 'right') {
+        rightDown = gripPressed;
+        rightPos = pos;
+      }
+      idx++;
+    }
+
+    const numActive = (leftDown ? 1 : 0) + (rightDown ? 1 : 0);
+    const s = this._gripState;
+
+    if (numActive === 0) {
+      s.active = 0;
+      return;
+    }
+
+    if (numActive === 1) {
+      const handPos = leftDown ? leftPos : rightPos;
+      if (s.active !== 1) {
+        s.active = 1;
+        s.handStart = handPos.clone();
+        s.pivotPosStart = this.pivot.position.clone();
+      } else {
+        const delta = handPos.clone().sub(s.handStart);
+        this.pivot.position.copy(s.pivotPosStart).add(delta);
+        this._syncUiAnchor();
+      }
+    } else {
+      // Two-handed grip — bimanual scale + translate around the midpoint.
+      const currentDist = leftPos.distanceTo(rightPos);
+      const currentMid = leftPos.clone().add(rightPos).multiplyScalar(0.5);
+      if (s.active !== 2) {
+        s.active = 2;
+        s.bimanualDistStart = currentDist;
+        s.bimanualMidStart = currentMid.clone();
+        s.pivotScaleStart = this.pivot.scale.x;
+        s.pivotPosStart = this.pivot.position.clone();
+      } else {
+        const ratio = currentDist / Math.max(0.05, s.bimanualDistStart);
+        const newScale = Math.max(
+          PIVOT_SCALE_MIN,
+          Math.min(PIVOT_SCALE_MAX, s.pivotScaleStart * ratio),
+        );
+        this.pivot.scale.setScalar(newScale);
+        const midDelta = currentMid.clone().sub(s.bimanualMidStart);
+        this.pivot.position.copy(s.pivotPosStart).add(midDelta);
+        this._syncUiAnchor();
+      }
+    }
+  }
+
+  _syncUiAnchor() {
+    // Keep the world-locked UI (score readout + narrative brief) attached
+    // to the pivot's WORLD position, so panning the molecule with grip
+    // brings the labels along but doesn't rescale them.
+    if (!this.pivot) return;
+    this._uiWorldAnchor.copy(this.pivot.position);
+    if (this.readout) this.readout.group.position.copy(this._uiWorldAnchor);
+    if (this.narrativePanel) this.narrativePanel.group.position.copy(this._uiWorldAnchor);
   }
 
   _handleLeftControllerButtons(controllers) {
