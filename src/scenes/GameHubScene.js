@@ -52,10 +52,13 @@ export default class GameHubScene {
     // and init (e.g. transitionToHub right after a level's onComplete).
     this._loadProgress();
     this._buildMenu();
+    this._buildTipDots();
+    this.hoveredRow = -1;
     this.spawn = { player: [0, 0, 0], camera: [0, 1.6, 1.0] };
   }
 
   update(dt, controllers) {
+    this._updateHover(controllers);
     this._checkMenuActivation();
   }
 
@@ -141,12 +144,25 @@ export default class GameHubScene {
     const def = LEVEL_DEFS[i];
     const unlocked = this.isUnlocked(def.id);
     const completed = this.progress[def.id];
+    const hovered = i === this.hoveredRow;
     const yTop = TITLE_BAND_H + i * ROW_HEIGHT;
     const yMid = yTop + ROW_HEIGHT / 2;
 
-    // Row background tint
-    ctx.fillStyle = unlocked ? 'rgba(60, 80, 140, 0.18)' : 'rgba(60, 60, 80, 0.08)';
+    // Row background tint — brighter when the controller ray is on this row.
+    let bg;
+    if (hovered && unlocked)      bg = 'rgba(80, 150, 240, 0.45)';
+    else if (hovered && !unlocked) bg = 'rgba(120, 100, 100, 0.30)';
+    else if (unlocked)             bg = 'rgba(60, 80, 140, 0.18)';
+    else                           bg = 'rgba(60, 60, 80, 0.08)';
+    ctx.fillStyle = bg;
     ctx.fillRect(20, yTop + 8, CANVAS_W - 40, ROW_HEIGHT - 16);
+
+    // Hover outline
+    if (hovered) {
+      ctx.strokeStyle = unlocked ? '#3aa6ff' : '#776688';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(20, yTop + 8, CANVAS_W - 40, ROW_HEIGHT - 16);
+    }
 
     // Status icon
     let iconText, iconColor;
@@ -215,6 +231,59 @@ export default class GameHubScene {
         this._activateRow(this._hitTestRow(hits[0].uv));
       }
       this._desktopClick = null;
+    }
+  }
+
+  // ---- hover feedback (per-frame raycast) ---------------------------------
+
+  // Without a visible aim indicator, VR users have no way to know whether
+  // they're pointing at the menu before pulling the trigger. We raycast each
+  // controller every frame, snap a tip dot to the hit point, and highlight
+  // the hovered row in the canvas.
+  _buildTipDots() {
+    const dotGeo = new THREE.SphereGeometry(0.012, 12, 12);
+    this.tipDots = [];
+    for (let i = 0; i < 2; i++) {
+      const mat = new THREE.MeshBasicMaterial({ color: 0x06d6a0, depthTest: false });
+      const dot = new THREE.Mesh(dotGeo, mat);
+      dot.visible = false;
+      dot.renderOrder = 1000;
+      this._add(dot);
+      this.tipDots.push(dot);
+    }
+  }
+
+  _updateHover(controllers) {
+    const session = this.ctx.renderer.xr.getSession();
+    let newHover = -1;
+
+    for (let i = 0; i < 2; i++) {
+      const ctrl = controllers[i];
+      const dot = this.tipDots[i];
+      if (!session || !ctrl) {
+        dot.visible = false;
+        continue;
+      }
+
+      const tempMat = new THREE.Matrix4().extractRotation(ctrl.matrixWorld);
+      const rc = new THREE.Raycaster();
+      rc.ray.origin.setFromMatrixPosition(ctrl.matrixWorld);
+      rc.ray.direction.set(0, 0, -1).applyMatrix4(tempMat);
+      const hits = rc.intersectObject(this.menuPlane, false);
+
+      if (hits.length > 0 && hits[0].uv) {
+        dot.position.copy(hits[0].point);
+        dot.visible = true;
+        const row = this._hitTestRow(hits[0].uv);
+        if (row >= 0 && newHover < 0) newHover = row;
+      } else {
+        dot.visible = false;
+      }
+    }
+
+    if (newHover !== this.hoveredRow) {
+      this.hoveredRow = newHover;
+      this._renderMenu();
     }
   }
 
