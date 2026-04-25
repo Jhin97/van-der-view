@@ -71,6 +71,7 @@ const controllerModelFactory = new XRControllerModelFactory();
 const handModelFactory = new XRHandModelFactory();
 
 const tempMatrix = new THREE.Matrix4();
+const raycaster = new THREE.Raycaster();
 
 // ---- Scene transition system -----------------------------------------------
 
@@ -236,7 +237,6 @@ function _syncHubProgress() {
 
 function buildController(index) {
   const controller = renderer.xr.getController(index);
-  controller.userData.teleporting = false;
   controller.userData.held = null;
 
   const grip = renderer.xr.getControllerGrip(index);
@@ -255,15 +255,8 @@ function buildController(index) {
   line.scale.z = 5;
   controller.add(line);
 
-  controller.addEventListener('squeezestart', () => { controller.userData.teleporting = true; });
-  controller.addEventListener('squeezeend', () => {
-    controller.userData.teleporting = false;
-    if (teleportMarker.visible) {
-      player.position.x = teleportMarker.position.x;
-      player.position.z = teleportMarker.position.z;
-      teleportMarker.visible = false;
-    }
-  });
+  controller.addEventListener('selectstart', () => onSelectStart(controller));
+  controller.addEventListener('selectend', () => onSelectEnd(controller));
 
   player.add(controller);
   return controller;
@@ -283,7 +276,14 @@ function onSelectStart(controller) {
     if (obj.userData.grabbable) {
       controller.attach(obj);
       controller.userData.held = obj;
+      return;
     }
+  }
+
+  // No grab hit — let the active scene treat the trigger as a click
+  // (e.g. hub menu raycast). Mirrors the desktop mouse-click path.
+  if (activeScene && activeScene._onControllerClick) {
+    activeScene._onControllerClick(controller);
   }
 }
 
@@ -297,34 +297,7 @@ function onSelectEnd(controller) {
 const controller0 = buildController(0);
 const controller1 = buildController(1);
 
-controller0.addEventListener('selectstart', () => onSelectStart(controller0));
-controller0.addEventListener('selectend', () => onSelectEnd(controller0));
-controller1.addEventListener('selectstart', () => onSelectStart(controller1));
-controller1.addEventListener('selectend', () => onSelectEnd(controller1));
-
-const raycaster = new THREE.Raycaster();
-const teleportMarker = new THREE.Mesh(
-  new THREE.RingGeometry(0.18, 0.22, 32).rotateX(-Math.PI / 2),
-  new THREE.MeshBasicMaterial({ color: 0x06d6a0, transparent: true, opacity: 0.85 })
-);
-teleportMarker.visible = false;
-scene.add(teleportMarker);
-
-function updateTeleport(controller) {
-  if (!controller.userData.teleporting) return;
-  tempMatrix.identity().extractRotation(controller.matrixWorld);
-  raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-  raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-  const hit = raycaster.intersectObject(floor, false)[0];
-  if (hit) {
-    teleportMarker.position.copy(hit.point);
-    teleportMarker.visible = true;
-  } else {
-    teleportMarker.visible = false;
-  }
-}
-
-function handleThumbstickTeleport() {
+function handleThumbstickLocomotion() {
   const session = renderer.xr.getSession();
   if (!session) return;
   for (const source of session.inputSources) {
@@ -444,9 +417,7 @@ renderer.setAnimationLoop((time) => {
   const dt = lastTime ? time - lastTime : 16;
   lastTime = time;
 
-  updateTeleport(controller0);
-  updateTeleport(controller1);
-  handleThumbstickTeleport();
+  handleThumbstickLocomotion();
   handleDesktopFallback(dt);
 
   if (activeScene && !transitioning) {
