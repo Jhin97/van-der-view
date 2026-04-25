@@ -1,0 +1,16 @@
+name: vdv-pipeline
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - biopython=1.83
+  - rdkit=2024.03.5
+  - openbabel=3.1.1
+  - vina=1.2.5
+  - pymol-open-source=3.0.0
+  - pip
+  - pip:
+    - pytest==8.2.0
+    - jsonschema==4.22.0
+    - ruff==0.5.0

@@ -1,0 +1,14 @@
+{
+  "name": "vdv-pipeline-mesh-tooling",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node-side mesh tooling for the F-002 asset pipeline (obj2gltf + draco compression).",
+  "dependencies": {
+    "obj2gltf": "^4.0.0",
+    "gltf-pipeline": "^4.1.0"
+  },
+  "scripts": {
+    "obj2gltf": "obj2gltf",
+    "compress": "gltf-pipeline -d"
+  }
+}
