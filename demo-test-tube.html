@@ -8,17 +8,17 @@
     html, body { margin: 0; padding: 0; overflow: hidden; background: #0a0a14; color: #e0e0e0; font-family: ui-sans-serif, system-ui, sans-serif; }
     canvas { display: block; }
     #hud { position: fixed; top: 12px; left: 12px; z-index: 10; background: rgba(0,0,0,0.6); padding: 10px 16px; border-radius: 8px; font-size: 13px; }
-    #hud h2 { margin: 0 0 6px 0; font-size: 15px; color: #06d6a0; }
+    #hud h2 { margin: 0 0 6px 0; font-size: 15px; color: #ffd700; }
     #hud div { margin: 2px 0; }
     #hud code { background: rgba(255,255,255,0.08); padding: 1px 4px; border-radius: 3px; }
   </style>
 </head>
 <body>
   <div id="hud">
-    <h2>Test Tube Score Demo</h2>
-    <div>Score auto-animates 0 → 1 → 0 (loop)</div>
+    <h2>Test Tube Score Demo v2</h2>
+    <div>Score auto-animates 0 → 100 → 0 (loop)</div>
     <div><code>Space</code> toggle auto-play | <code>←→</code> manual score</div>
-    <div id="score-display">Score: 0.000</div>
+    <div id="score-display">Score: 0</div>
   </div>
   <script type="module">
     import * as THREE from 'three';
@@ -30,31 +30,34 @@
     scene.fog = new THREE.Fog(0x0a0a14, 6, 20);
 
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.05, 100);
-    camera.position.set(0, 0.5, 0.8);
+    camera.position.set(0, 0.35, 0.55);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMappingExposure = 1.3;
     document.body.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 0.2, 0);
+    controls.target.set(0, 0.25, 0);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     controls.update();
 
     // ---- Lighting -----------------------------------------------------------
     scene.add(new THREE.HemisphereLight(0xbcd6ff, 0x1a1a2e, 0.6));
-    const key = new THREE.DirectionalLight(0xffffff, 1.2);
+    const key = new THREE.DirectionalLight(0xffffff, 1.4);
     key.position.set(2, 4, 3);
     scene.add(key);
-    const fill = new THREE.PointLight(0x4488ff, 0.5, 5);
+    const fill = new THREE.PointLight(0x4488ff, 0.4, 5);
     fill.position.set(-1, 1, 1);
     scene.add(fill);
+    const rimLight = new THREE.PointLight(0xffd700, 0.3, 4);
+    rimLight.position.set(1, 0.5, -1);
+    scene.add(rimLight);
 
-    // ---- Floor & background -------------------------------------------------
+    // ---- Floor --------------------------------------------------------------
     const floorGeo = new THREE.CircleGeometry(4, 64);
     const floorMat = new THREE.MeshStandardMaterial({ color: 0x1c1c2a, roughness: 0.9 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
@@ -62,140 +65,197 @@
     scene.add(floor);
     scene.add(new THREE.GridHelper(8, 16, 0x333355, 0x222233));
 
-    // ---- Build test tube (same logic as score-readout.js) -------------------
+    // ---- Dimensions ---------------------------------------------------------
+    const TUBE_OUTER_R = 0.032;
+    const TUBE_INNER_R = 0.027;
+    const TUBE_HEIGHT  = 0.40;
+    const TUBE_WALL    = TUBE_OUTER_R - TUBE_INNER_R;
+    const BULB_RADIUS  = TUBE_OUTER_R * 1.55;
+    const BULB_HEIGHT  = BULB_RADIUS;
+    const TOTAL_HEIGHT = TUBE_HEIGHT + BULB_HEIGHT;
+    const LIQUID_MAX_H = TUBE_HEIGHT - 0.015;
+    const RIM_FLARE    = TUBE_OUTER_R * 1.15;
+    const RIM_HEIGHT   = 0.006;
+    const NECK_T       = 0.03;
+    const SEGMENTS     = 36;
+    const GRAD_MARKS   = 5;
 
-    const TUBE_RADIUS = 0.028;
-    const TUBE_HEIGHT = 0.35;
-    const TUBE_BOTTOM_R = TUBE_RADIUS * 0.85;
-    const GLASS_THICKNESS = 0.004;
-    const LIQUID_MAX_H = TUBE_HEIGHT - 0.03;
-    const RIM_HEIGHT = 0.008;
-    const RIM_RADIUS = TUBE_RADIUS * 1.18;
-    const GRAD_MARKS = 5;
-    const SEGMENTS = 32;
-
+    // ---- Colour: white → silver → gold --------------------------------------
     function scoreColor(t) {
-      const hue = Math.max(0, Math.min(1, t)) * 300;
-      return new THREE.Color().setHSL(hue / 360, 0.9, 0.5);
+      const s = Math.max(0, Math.min(1, t));
+      if (s < 0.5) {
+        const f = s / 0.5;
+        return new THREE.Color(0.95 - f * 0.20, 0.95 - f * 0.20, 0.95 - f * 0.17);
+      } else {
+        const f = (s - 0.5) / 0.5;
+        return new THREE.Color(0.75 + f * 0.25, 0.75 + f * 0.09, 0.78 - f * 0.78);
+      }
     }
 
-    // Tube (glass)
-    const tubePoints = [];
-    const capSteps = 6;
-    for (let i = capSteps; i >= 0; i--) {
-      const a = (i / capSteps) * Math.PI * 0.5;
-      tubePoints.push(new THREE.Vector2(Math.cos(a) * TUBE_BOTTOM_R, Math.sin(a) * TUBE_BOTTOM_R));
+    // ---- Glass tube (realistic test tube with round bulb) --------------------
+    const tubePts = [];
+    const bulbSteps = 12;
+    for (let i = bulbSteps; i >= 0; i--) {
+      const a = (i / bulbSteps) * Math.PI;
+      tubePts.push(new THREE.Vector2(
+        Math.sin(a) * BULB_RADIUS,
+        BULB_HEIGHT * 0.5 - Math.cos(a) * BULB_HEIGHT * 0.5 + BULB_HEIGHT * 0.5,
+      ));
     }
-    tubePoints.push(new THREE.Vector2(TUBE_RADIUS, TUBE_HEIGHT));
-    tubePoints.push(new THREE.Vector2(RIM_RADIUS, TUBE_HEIGHT));
-    tubePoints.push(new THREE.Vector2(RIM_RADIUS, TUBE_HEIGHT + RIM_HEIGHT));
-    tubePoints.push(new THREE.Vector2(TUBE_RADIUS, TUBE_HEIGHT + RIM_HEIGHT));
+    const neckSteps = 6;
+    for (let i = 1; i <= neckSteps; i++) {
+      const f = i / neckSteps;
+      const sf = f * f * (3 - 2 * f);
+      tubePts.push(new THREE.Vector2(
+        BULB_RADIUS + (TUBE_OUTER_R - BULB_RADIUS) * sf,
+        BULB_HEIGHT + f * NECK_T,
+      ));
+    }
+    tubePts.push(new THREE.Vector2(TUBE_OUTER_R, BULB_HEIGHT + NECK_T));
+    tubePts.push(new THREE.Vector2(TUBE_OUTER_R, TOTAL_HEIGHT));
+    tubePts.push(new THREE.Vector2(RIM_FLARE, TOTAL_HEIGHT));
+    tubePts.push(new THREE.Vector2(RIM_FLARE, TOTAL_HEIGHT + RIM_HEIGHT));
+    tubePts.push(new THREE.Vector2(TUBE_OUTER_R, TOTAL_HEIGHT + RIM_HEIGHT));
 
-    const tubeGeo = new THREE.LatheGeometry(tubePoints, SEGMENTS);
+    const tubeGeo = new THREE.LatheGeometry(tubePts, SEGMENTS);
     const tubeMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
+      color: 0xeef4ff,
       transparent: true,
-      opacity: 0.22,
-      roughness: 0.05,
+      opacity: 0.18,
+      roughness: 0.02,
       metalness: 0.0,
-      transmission: 0.85,
-      thickness: GLASS_THICKNESS,
-      ior: 1.5,
+      transmission: 0.9,
+      thickness: TUBE_WALL * 2,
+      ior: 1.52,
       side: THREE.DoubleSide,
       depthWrite: false,
+      envMapIntensity: 1.5,
     });
     const tube = new THREE.Mesh(tubeGeo, tubeMat);
-    tube.position.y = 0;
     scene.add(tube);
 
-    // Liquid
-    const innerR = TUBE_RADIUS - GLASS_THICKNESS;
-    const liqBottomR = innerR * 0.82;
-    const liqPoints = [];
-    for (let i = capSteps; i >= 0; i--) {
-      const a = (i / capSteps) * Math.PI * 0.5;
-      liqPoints.push(new THREE.Vector2(Math.cos(a) * liqBottomR, Math.sin(a) * liqBottomR));
-    }
-    liqPoints.push(new THREE.Vector2(innerR, LIQUID_MAX_H));
+    // ---- Liquid body --------------------------------------------------------
+    const innerBulbR = BULB_RADIUS - TUBE_WALL;
+    const innerNeckR = TUBE_INNER_R;
+    const innerTotalH = BULB_HEIGHT + NECK_T + LIQUID_MAX_H;
 
-    const liquidGeo = new THREE.LatheGeometry(liqPoints, SEGMENTS);
+    const liqPts = [];
+    for (let i = bulbSteps; i >= 0; i--) {
+      const a = (i / bulbSteps) * Math.PI;
+      liqPts.push(new THREE.Vector2(
+        Math.sin(a) * innerBulbR,
+        BULB_HEIGHT * 0.5 - Math.cos(a) * BULB_HEIGHT * 0.5 + BULB_HEIGHT * 0.5,
+      ));
+    }
+    for (let i = 1; i <= neckSteps; i++) {
+      const f = i / neckSteps;
+      const sf = f * f * (3 - 2 * f);
+      liqPts.push(new THREE.Vector2(
+        innerBulbR + (innerNeckR - innerBulbR) * sf,
+        BULB_HEIGHT + f * NECK_T,
+      ));
+    }
+    liqPts.push(new THREE.Vector2(innerNeckR, innerTotalH));
+
+    const liquidGeo = new THREE.LatheGeometry(liqPts, SEGMENTS);
     const liquidMat = new THREE.MeshStandardMaterial({
       color: scoreColor(0),
       transparent: true,
-      opacity: 0.82,
-      roughness: 0.15,
-      metalness: 0.2,
+      opacity: 0.88,
+      roughness: 0.12,
+      metalness: 0.35,
       emissive: scoreColor(0),
-      emissiveIntensity: 0.25,
+      emissiveIntensity: 0.3,
       side: THREE.DoubleSide,
     });
     const liquid = new THREE.Mesh(liquidGeo, liquidMat);
     liquid.scale.y = 0.01;
     scene.add(liquid);
 
-    // Meniscus
-    const meniscusGeo = new THREE.CircleGeometry(innerR, SEGMENTS);
+    // ---- Meniscus -----------------------------------------------------------
+    const meniscusGeo = new THREE.CircleGeometry(innerNeckR, SEGMENTS);
     const meniscusMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff, transparent: true, opacity: 0.4, roughness: 0.1, metalness: 0.3, side: THREE.DoubleSide,
+      color: 0xffffff, transparent: true, opacity: 0.55,
+      roughness: 0.08, metalness: 0.4, side: THREE.DoubleSide,
     });
     const meniscus = new THREE.Mesh(meniscusGeo, meniscusMat);
     meniscus.rotation.x = -Math.PI / 2;
     meniscus.visible = false;
     scene.add(meniscus);
 
-    // Graduation marks
+    // ---- Graduation marks ---------------------------------------------------
     const markGroup = new THREE.Group();
     for (let i = 1; i <= GRAD_MARKS; i++) {
       const t = i / (GRAD_MARKS + 1);
-      const y = t * LIQUID_MAX_H;
-      const tickGeo = new THREE.PlaneGeometry(TUBE_RADIUS * 0.5, 0.002);
-      const tickMat = new THREE.MeshBasicMaterial({ color: 0x8888aa, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+      const y = BULB_HEIGHT + NECK_T + t * LIQUID_MAX_H;
+      const tickGeo = new THREE.PlaneGeometry(TUBE_OUTER_R * 0.4, 0.002);
+      const tickMat = new THREE.MeshBasicMaterial({ color: 0xaabbcc, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
       const tick = new THREE.Mesh(tickGeo, tickMat);
-      tick.position.set(TUBE_RADIUS * 0.6, y, 0.002);
+      tick.position.set(TUBE_OUTER_R * 0.65, y, 0.003);
       markGroup.add(tick);
-
-      const labelCanvas = document.createElement('canvas');
-      labelCanvas.width = 64; labelCanvas.height = 32;
-      const lctx = labelCanvas.getContext('2d');
-      lctx.fillStyle = '#8888aa';
-      lctx.font = 'bold 20px ui-monospace, monospace';
-      lctx.textAlign = 'center'; lctx.textBaseline = 'middle';
-      lctx.fillText((t * 100).toFixed(0), 32, 16);
-      const lTex = new THREE.CanvasTexture(labelCanvas);
-      lTex.minFilter = THREE.LinearFilter;
-      const lMat = new THREE.SpriteMaterial({ map: lTex, transparent: true, depthTest: false });
-      const lSprite = new THREE.Sprite(lMat);
-      lSprite.position.set(TUBE_RADIUS * 1.8, y, 0);
-      lSprite.scale.set(0.04, 0.015, 1);
-      markGroup.add(lSprite);
+      const label = makeGradLabel(Math.round(t * 100));
+      label.position.set(TUBE_OUTER_R * 2.0, y, 0);
+      label.scale.set(0.035, 0.018, 1);
+      markGroup.add(label);
     }
     scene.add(markGroup);
 
-    // Score label
+    function makeGradLabel(val) {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 32;
+      const x = c.getContext('2d');
+      x.fillStyle = '#99aacc';
+      x.font = 'bold 18px "Comic Sans MS", "Segoe Print", cursive';
+      x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText(val.toString(), 32, 16);
+      const t = new THREE.CanvasTexture(c);
+      t.minFilter = THREE.LinearFilter;
+      return new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false }));
+    }
+
+    // ---- Score label (cartoon, 1–100) ---------------------------------------
     const scoreCanvas = document.createElement('canvas');
-    scoreCanvas.width = 512; scoreCanvas.height = 96;
+    scoreCanvas.width = 256; scoreCanvas.height = 256;
     const scoreCtx = scoreCanvas.getContext('2d');
     const scoreTex = new THREE.CanvasTexture(scoreCanvas);
     scoreTex.colorSpace = THREE.SRGBColorSpace;
     scoreTex.minFilter = THREE.LinearFilter;
-    const scoreLabelMat = new THREE.MeshBasicMaterial({ map: scoreTex, transparent: true, side: THREE.DoubleSide, depthTest: false });
-    const scoreLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.035), scoreLabelMat);
-    scoreLabel.position.set(0, TUBE_HEIGHT + RIM_HEIGHT + 0.05, 0);
+    const scoreLabel = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ map: scoreTex, transparent: true, side: THREE.DoubleSide, depthTest: false }),
+    );
+    scoreLabel.position.set(0.09, TOTAL_HEIGHT * 0.45, 0);
+    scoreLabel.scale.set(0.18, 0.18, 1);
     scene.add(scoreLabel);
 
-    // Glow ring
-    const glowGeo = new THREE.RingGeometry(TUBE_RADIUS * 0.4, TUBE_RADIUS * 1.1, 32);
-    const glowMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false });
+    // ---- "Successful!" banner -----------------------------------------------
+    const successCanvas = document.createElement('canvas');
+    successCanvas.width = 512; successCanvas.height = 128;
+    const successCtx = successCanvas.getContext('2d');
+    const successTex = new THREE.CanvasTexture(successCanvas);
+    successTex.colorSpace = THREE.SRGBColorSpace;
+    successTex.minFilter = THREE.LinearFilter;
+    const successBanner = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ map: successTex, transparent: true, side: THREE.DoubleSide, depthTest: false }),
+    );
+    successBanner.position.set(0, TOTAL_HEIGHT + RIM_HEIGHT + 0.07, 0);
+    successBanner.scale.set(0.22, 0.055, 1);
+    successBanner.visible = false;
+    scene.add(successBanner);
+
+    // ---- Glow ring ----------------------------------------------------------
+    const glowGeo = new THREE.RingGeometry(TUBE_INNER_R * 0.3, TUBE_OUTER_R * 1.3, 32);
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false });
     const glowRing = new THREE.Mesh(glowGeo, glowMat);
     glowRing.rotation.x = -Math.PI / 2;
     scene.add(glowRing);
 
-    // ---- Animation state ----------------------------------------------------
-
+    // ---- State --------------------------------------------------------------
     let autoPlay = true;
     let manualScore = 0;
     let currentScore = 0;
-
+    let successShown = false;
     const scoreDisplay = document.getElementById('score-display');
 
     window.addEventListener('keydown', (e) => {
@@ -204,64 +264,96 @@
       if (e.code === 'ArrowLeft')  { autoPlay = false; manualScore = Math.max(0, manualScore - 0.02); }
     });
 
-    // ---- Render loop --------------------------------------------------------
-
-    function paintLabel(score) {
-      const ctx = scoreCtx;
-      const w = scoreCanvas.width, h = scoreCanvas.height;
+    // ---- Paint helpers ------------------------------------------------------
+    function paintScore(t) {
+      const ctx = scoreCtx, w = scoreCanvas.width, h = scoreCanvas.height;
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = 'rgba(10,10,24,0.85)';
-      ctx.beginPath(); ctx.roundRect(0, 0, w, h, 8); ctx.fill();
-
-      const col = scoreColor(score);
-      const css = `rgb(${Math.round(col.r*255)},${Math.round(col.g*255)},${Math.round(col.b*255)})`;
-      ctx.fillStyle = css;
-      ctx.font = 'bold 44px ui-monospace, monospace';
+      const pts = Math.round(t * 100);
+      const col = scoreColor(t);
+      const bright = new THREE.Color(col.r * 0.5 + 0.5, col.g * 0.5 + 0.5, col.b * 0.5 + 0.5);
+      const fill = `rgb(${Math.round(bright.r*255)},${Math.round(bright.g*255)},${Math.round(bright.b*255)})`;
+      ctx.font = 'bold 110px "Comic Sans MS", "Segoe Print", "Chalkboard SE", cursive';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(score.toFixed(3), w / 2, h / 2);
-
+      ctx.strokeStyle = '#0a0a14'; ctx.lineWidth = 10; ctx.lineJoin = 'round';
+      ctx.strokeText(pts.toString(), w / 2, h / 2 - 20);
+      ctx.fillStyle = fill;
+      ctx.fillText(pts.toString(), w / 2, h / 2 - 20);
+      ctx.font = 'bold 22px "Comic Sans MS", "Segoe Print", cursive';
+      ctx.strokeStyle = '#0a0a14'; ctx.lineWidth = 4;
+      ctx.strokeText('/ 100', w / 2, h / 2 + 50);
+      ctx.fillStyle = '#ccccdd';
+      ctx.fillText('/ 100', w / 2, h / 2 + 50);
       scoreTex.needsUpdate = true;
     }
 
+    function paintSuccess(time) {
+      const ctx = successCtx, w = successCanvas.width, h = successCanvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const pulse = 0.9 + Math.sin(time * 0.006) * 0.1;
+      ctx.fillStyle = `rgba(255, 200, 0, ${0.15 * pulse})`;
+      ctx.beginPath(); ctx.roundRect(0, 0, w, h, 16); ctx.fill();
+      ctx.strokeStyle = `rgba(255, 180, 0, ${0.7 * pulse})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.roundRect(2, 2, w - 4, h - 4, 14); ctx.stroke();
+      ctx.font = 'bold 56px "Comic Sans MS", "Segoe Print", "Chalkboard SE", cursive';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.strokeStyle = '#0a0a14'; ctx.lineWidth = 6; ctx.lineJoin = 'round';
+      ctx.strokeText('Successful!', w / 2, h / 2);
+      ctx.fillStyle = '#ffd700';
+      ctx.fillText('Successful!', w / 2, h / 2);
+      successTex.needsUpdate = true;
+    }
+
+    // ---- Render loop --------------------------------------------------------
     renderer.setAnimationLoop((time) => {
       const t = time * 0.001;
-
-      // Compute target score
       let target;
       if (autoPlay) {
-        // Smooth sine wave 0 → 1 → 0, period ~6s
         target = (Math.sin(t * (Math.PI / 3) - Math.PI / 2) + 1) * 0.5;
       } else {
         target = manualScore;
       }
 
-      // Smooth interpolation
       currentScore += (target - currentScore) * 0.08;
       const s = currentScore;
 
-      // Update liquid
-      liquid.scale.y = s < 0.01 ? 0.01 : s;
+      // Liquid — bulb always visible; scale cylinder portion
+      const bulbFrac = (BULB_HEIGHT + NECK_T) / innerTotalH;
+      liquid.scale.y = bulbFrac + (1 - bulbFrac) * Math.max(0.01, s);
 
       // Meniscus
-      const capH = liqBottomR;
-      const meniscusY = capH + (s * LIQUID_MAX_H - capH) * Math.min(1, s * 2);
-      meniscus.position.y = meniscusY;
-      meniscus.visible = s > 0.02;
+      const cylinderTop = BULB_HEIGHT + NECK_T + s * LIQUID_MAX_H;
+      meniscus.position.y = cylinderTop;
+      meniscus.visible = s > 0.03;
+      meniscusMat.color.copy(scoreColor(s));
 
       // Colour
       const col = scoreColor(s);
       liquidMat.color.copy(col);
       liquidMat.emissive.copy(col);
-      liquidMat.emissiveIntensity = 0.2 + s * 0.3;
+      liquidMat.emissiveIntensity = 0.25 + s * 0.45;
+      liquidMat.metalness = 0.2 + s * 0.5;
 
       // Glow ring
-      glowRing.position.y = meniscusY;
+      glowRing.position.y = cylinderTop;
       glowRing.material.color.copy(col);
-      glowRing.material.opacity = s > 0.05 ? 0.15 + Math.sin(time * 0.004) * 0.05 : 0;
+      glowRing.material.opacity = s > 0.05 ? 0.2 + Math.sin(time * 0.005) * 0.08 : 0;
 
-      // Label
-      paintLabel(s);
-      scoreDisplay.textContent = `Score: ${s.toFixed(3)} | ${autoPlay ? 'Auto' : 'Manual'}`;
+      // Score label
+      paintScore(s);
+
+      // "Successful!" at 100
+      if (s >= 0.98 && !successShown) {
+        successShown = true;
+        successBanner.visible = true;
+      }
+      if (s < 0.95) {
+        successShown = false;
+        successBanner.visible = false;
+      }
+      if (successBanner.visible) paintSuccess(time);
+
+      scoreDisplay.textContent = `Score: ${Math.round(s * 100)} / 100 | ${autoPlay ? 'Auto' : 'Manual'}`;
 
       controls.update();
       renderer.render(scene, camera);
