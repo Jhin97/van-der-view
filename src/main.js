@@ -2,7 +2,28 @@ import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
+import { PRE_QUESTIONS, POST_QUESTIONS } from './survey-questions.js';
+import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from './survey-ui.js';
 
+// --- Session ID (persists across pre/post for this page load) ---------------
+const sessionId = crypto.randomUUID();
+
+// --- Telemetry POST --------------------------------------------------------
+async function submitSurvey(responses) {
+  try {
+    const res = await fetch('/api/telemetry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(responses),
+    });
+    if (!res.ok) console.error('[telemetry] submit failed', res.status);
+    else console.log('[telemetry] submitted', responses.length, 'responses');
+  } catch (err) {
+    console.error('[telemetry] network error', err);
+  }
+}
+
+// --- Three.js scene setup --------------------------------------------------
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a14);
 scene.fog = new THREE.Fog(0x0a0a14, 10, 40);
@@ -166,7 +187,11 @@ window.addEventListener('resize', () => {
 let last = performance.now();
 let frames = 0;
 let fps = 0;
+let animating = false;
+
 renderer.setAnimationLoop((time) => {
+  if (!animating) return;
+
   updateTeleport(controller0);
   updateTeleport(controller1);
   handleThumbstickTeleport();
@@ -186,9 +211,6 @@ if (!('xr' in navigator)) {
 }
 
 // --- Cross-client sync (Quest ↔ PC spectator) -----------------------------
-// Each grabbable cube has a stable index. While this client is holding a
-// cube, it broadcasts that cube's world transform every frame. Other clients
-// apply incoming transforms to cubes they are not currently holding.
 const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
 const ws = new WebSocket(`${wsProto}://${location.host}/sync`);
 let wsReady = false;
@@ -208,7 +230,7 @@ ws.addEventListener('message', (e) => {
   if (msg.type !== 'cube') return;
   const cube = grabbables[msg.id];
   if (!cube) return;
-  if (localHeldCube(cube)) return; // local authority wins while we hold it
+  if (localHeldCube(cube)) return;
   if (cube.parent !== scene) scene.attach(cube);
   cube.position.fromArray(msg.p);
   cube.quaternion.fromArray(msg.q);
@@ -230,17 +252,46 @@ function broadcastHeldTransforms() {
   }
 }
 
-// Send one final transform on release so the remote sees the resting pose.
 for (const ctrl of [controller0, controller1]) {
   ctrl.addEventListener('selectend', () => {
     if (!wsReady) return;
-    // userData.held has already been cleared in onSelectEnd; broadcast every cube
-    // by walking grabbables would be wasteful, so we instead rely on the
-    // last per-frame update that ran before selectend. No-op here.
   });
 }
 
-// Debug surface for end-to-end sync checks. Not used in production paths.
+// Debug surface
 window.__VDV = { grabbables, ws, scene, renderer };
 
+// --- Survey flow -----------------------------------------------------------
+async function runPreSurvey() {
+  const responses = await showSurvey(
+    PRE_QUESTIONS,
+    'Pre-Experience Survey',
+    'pre',
+    sessionId,
+  );
+  await submitSurvey(responses);
+  startExperience();
+}
+
+async function runPostSurvey() {
+  removeFinishButton();
+  const responses = await showSurvey(
+    POST_QUESTIONS,
+    'Post-Experience Survey',
+    'post',
+    sessionId,
+  );
+  await submitSurvey(responses);
+  showThankYou();
+}
+
+function startExperience() {
+  animating = true;
+  // Render one frame immediately so the scene is visible
+  renderer.render(scene, camera);
+  createFinishButton(() => runPostSurvey());
+}
+
+// --- Boot: pre-survey blocks the experience until completed ----------------
 console.log('van-der-view F-001 scaffold loaded. WebXR ready:', 'xr' in navigator);
+runPreSurvey();
