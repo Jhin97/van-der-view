@@ -171,20 +171,32 @@ async function loadScene(sceneIdOrClass) {
 async function transitionToScene(sceneId) {
   if (transitioning) return;
   transitioning = true;
-  await _fadeOut(300);
-  await loadScene(sceneId);
-  await _fadeIn(300);
-  transitioning = false;
+  try {
+    await _fadeOut(300);
+    await loadScene(sceneId);
+    await _fadeIn(300);
+  } catch (err) {
+    console.error('[transition] scene transition failed', err);
+  } finally {
+    // Always release the lock — otherwise a thrown error in load/fade
+    // pins transitioning=true and the user is stuck on a dead screen.
+    transitioning = false;
+  }
 }
 
 async function transitionToHub() {
   if (transitioning) return;
   transitioning = true;
-  await _fadeOut(300);
-  await loadScene(GameHubScene);
-  _syncHubProgress();
-  await _fadeIn(300);
-  transitioning = false;
+  try {
+    await _fadeOut(300);
+    await loadScene(GameHubScene);
+    _syncHubProgress();
+    await _fadeIn(300);
+  } catch (err) {
+    console.error('[transition] hub transition failed', err);
+  } finally {
+    transitioning = false;
+  }
 }
 
 // Fade animation state — ticked from the main animation loop so it works

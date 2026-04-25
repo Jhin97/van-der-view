@@ -60,6 +60,11 @@ export default class GameHubScene {
   update(dt, controllers) {
     this._updateHover(controllers);
     this._checkMenuActivation();
+    // Deferred trigger click — see _onControllerClick comment for why.
+    if (this._pendingClick) {
+      this._pendingClick = false;
+      if (this.hoveredRow >= 0) this._activateRow(this.hoveredRow);
+    }
   }
 
   getGrabbables() { return this.grabbables; }
@@ -208,17 +213,15 @@ export default class GameHubScene {
   }
 
   // VR trigger pull is dispatched by main.js's onSelectStart when no
-  // grabbable was hit. The controller event fires per-controller, so the
-  // matrix is the right one — no inputSources iteration to misalign.
-  _onControllerClick(controller) {
-    const tempMat = new THREE.Matrix4().extractRotation(controller.matrixWorld);
-    const rc = new THREE.Raycaster();
-    rc.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-    rc.ray.direction.set(0, 0, -1).applyMatrix4(tempMat);
-    const hits = rc.intersectObject(this.menuPlane, false);
-    if (hits.length > 0 && hits[0].uv) {
-      this._activateRow(this._hitTestRow(hits[0].uv));
-    }
+  // grabbable was hit. We **don't** raycast here — selectstart fires from
+  // a WebXR input event whose timing is decoupled from the XR frame loop,
+  // so `controller.matrixWorld` may be stale. Instead just flag a pending
+  // click; `update()` consumes it next frame and uses the live hoveredRow
+  // (raycasted with fresh matrices in `_updateHover`) as the activation
+  // target. This eliminates the "hover lights up but click does nothing"
+  // race that came from the ray missing the menu plane on the event tick.
+  _onControllerClick(_controller) {
+    this._pendingClick = true;
   }
 
   _checkMenuActivation() {
