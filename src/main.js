@@ -4,11 +4,13 @@ import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFa
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import TutorialScene from './scenes/TutorialScene.js';
 import GameHubScene from './scenes/GameHubScene.js';
+import LevelOneScene from './scenes/LevelOneScene.js';
 import { PRE_QUESTIONS, POST_QUESTIONS } from './survey-questions.js';
 import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from './survey-ui.js';
 
 // --- Session ID (persists across pre/post for this page load) ---------------
 const sessionId = crypto.randomUUID();
+window.__VDV_SESSION_ID = sessionId;
 
 // --- Telemetry POST --------------------------------------------------------
 async function submitSurvey(responses) {
@@ -100,7 +102,7 @@ function updateFadeQuad() {
 // Scene registry: maps portal IDs to scene classes
 const SCENE_MAP = {
   tutorial: TutorialScene,
-  l1: null, // F-004b will register a scene here
+  l1: LevelOneScene, // F-004b — wired below via SCENE_MAP entry
   l2: null, // F-005
   l3: null, // F-006
 };
@@ -492,7 +494,9 @@ async function runPostSurvey() {
 
 function startExperience() {
   animating = true;
-  // Start in GameHub — tutorial is accessible from hub
+  // Start in GameHub — tutorial is accessible from hub. L1 is wired into
+  // SCENE_MAP, so the hub's portal selection drives the transition; no
+  // bespoke onComplete chain is needed here (F-004b).
   loadScene(GameHubScene);
   _syncHubProgress();
   renderer.render(scene, camera);

@@ -1,0 +1,304 @@
+// src/scenes/LevelOneScene.js
+//
+// Level 1: dock celecoxib into COX-2 active site.
+// Lifecycle matches TutorialScene: init / update(dt, controllers) /
+// destroy / getGrabbables.
+
+import * as THREE from 'three';
+import { loadGLB, loadJSON, extractAtomPositions } from '../lib/asset-loader.js';
+import { computeScore } from '../lib/scoring.js';
+import { buildReadout } from '../ui/score-readout.js';
+import { buildNarrativePanel } from '../ui/narrative-panel.js';
+
+const ASSET_BASE = '/assets/v1';
+const NARRATIVE_PATH = '/src/data/l1-narrative.json';
+const SPAWN_OFFSET = new THREE.Vector3(0.6, 0.0, 0.0); // ≥ 6 Å along +x relative to pocket
+const TELEMETRY_INTERVAL_MS = 1000;
+const BEST_POSE_BADGE_FADE_MS = 5000;
+
+const TELEMETRY_ENDPOINT = '/api/telemetry';
+
+async function postTelemetry(events) {
+  try {
+    await fetch(TELEMETRY_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(events),
+    });
+  } catch (err) {
+    console.warn('[L1 telemetry]', err);
+  }
+}
+
+export default class LevelOneScene {
+  constructor(ctx) {
+    this.ctx = ctx; // { scene, player, renderer }
+    this.ready = false;
+    this.objects = [];     // tracked for destroy()
+    this.ligand = null;
+    this.spawnTransform = null; // {position: Vec3, quaternion: Quat}
+    this.pocket = null;
+    this.vinaBest = null;
+    this.narrative = null;
+    this.readout = null;
+    this.narrativePanel = null;
+    this.bestPoseFired = false;
+    this.bestPoseFireTime = 0;
+    this.telemetryAccumMs = 0;
+    this.dtSinceInit = 0;
+    this.redockCount = 0;
+    this.lastButtons = { A: false, B: false }; // edge detection on left controller
+  }
+
+  async init() {
+    // renderer.xr.getCamera() requires an active XR session — defer camera
+    // capture to update() so init() can run pre-session (desktop fallback).
+    const [cox2Surface, cox2Cartoon, ligand, pocket, vina, narrative] = await Promise.all([
+      loadGLB(`${ASSET_BASE}/cox2_surface.glb`),
+      loadGLB(`${ASSET_BASE}/cox2_cartoon.glb`),
+      loadGLB(`${ASSET_BASE}/ligands/celecoxib.glb`),
+      loadJSON(`${ASSET_BASE}/pocket_cox2.json`),
+      loadJSON(`${ASSET_BASE}/vina_results.json`),
+      loadJSON(NARRATIVE_PATH),
+    ]);
+
+    this.pocket = pocket;
+    this.vinaBest = vina.runs.find((r) => r.ligand === 'celecoxib' && r.target === 'cox2')?.best_pose;
+    if (!this.vinaBest) {
+      throw new Error('LevelOneScene: vina_results.json missing (celecoxib, cox2) entry');
+    }
+    this.narrative = narrative;
+
+    const pocketCenter = new THREE.Vector3(...pocket.pocket_center);
+
+    // Centre everything around pocket so the user starts looking at the action.
+    const pivot = new THREE.Group();
+    pivot.position.set(0, 1.0, -0.8); // 0.8 m forward of player at standing height
+    this.ctx.scene.add(pivot);
+    this.objects.push(pivot);
+
+    const offsetMatrix = new THREE.Matrix4().makeTranslation(
+      -pocketCenter.x, -pocketCenter.y, -pocketCenter.z
+    );
+    cox2Surface.applyMatrix4(offsetMatrix);
+    cox2Cartoon.applyMatrix4(offsetMatrix);
+    pivot.add(cox2Surface);
+    pivot.add(cox2Cartoon);
+
+    // Ligand spawn — translate same way so it lives in the same frame
+    ligand.applyMatrix4(offsetMatrix);
+    ligand.position.add(SPAWN_OFFSET);
+    ligand.userData.grabbable = true;
+    pivot.add(ligand);
+    this.ligand = ligand;
+    this.spawnTransform = {
+      position: ligand.position.clone(),
+      quaternion: ligand.quaternion.clone(),
+    };
+
+    // Score readout above the pocket (in pivot-local coords -> already centred at origin).
+    // Camera is null at init time; update() re-binds it once XR session starts.
+    this.readout = buildReadout({
+      pocketCenter: { x: 0, y: 0, z: 0 },
+      camera: null,
+    });
+    pivot.add(this.readout.group);
+
+    // Narrative panel
+    this.narrativePanel = buildNarrativePanel({
+      pocketCenter: { x: 0, y: 0, z: 0 },
+      pocketAnnotation: {
+        ...pocket,
+        // Shift residue Cα to pivot-local frame
+        key_residues: (pocket.key_residues || []).map((r) => ({
+          ...r,
+          ca_xyz: [r.ca_xyz[0] - pocketCenter.x, r.ca_xyz[1] - pocketCenter.y, r.ca_xyz[2] - pocketCenter.z],
+          side_chain_centroid: [
+            r.side_chain_centroid[0] - pocketCenter.x,
+            r.side_chain_centroid[1] - pocketCenter.y,
+            r.side_chain_centroid[2] - pocketCenter.z,
+          ],
+        })),
+      },
+      narrative,
+      scoreReadoutAnchor: { x: 0, y: 0.5, z: 0 },
+    });
+    pivot.add(this.narrativePanel.group);
+
+    this.pivot = pivot;
+    this.ready = true;
+
+    postTelemetry([
+      {
+        session_id: window.__VDV_SESSION_ID || crypto.randomUUID(),
+        event_type: 'level_start',
+        level: 'L1',
+        target: 'cox2',
+        ligand: 'celecoxib',
+        ts: Date.now(),
+      },
+    ]);
+  }
+
+  update(dt, controllers) {
+    if (!this.ready || !this.ligand) return;
+
+    this.dtSinceInit += dt;
+    this.telemetryAccumMs += dt;
+
+    // Resolve current camera (XR session-bound when presenting, else null).
+    const xr = this.ctx.renderer.xr;
+    const camera = xr.isPresenting ? xr.getCamera() : null;
+
+    // Collect ligand atom positions (sub-sampled vertex proxy)
+    this.ligand.updateMatrixWorld(true);
+    const atoms = extractAtomPositions(this.ligand);
+
+    // Compute centroid in world space
+    const centroid = new THREE.Vector3();
+    if (atoms.length > 0) {
+      for (const p of atoms) centroid.add(new THREE.Vector3(p.x, p.y, p.z));
+      centroid.multiplyScalar(1 / atoms.length);
+    } else {
+      centroid.copy(this.ligand.getWorldPosition(new THREE.Vector3()));
+    }
+
+    // Convert to pivot-local for the pocket frame the spec lives in
+    const pivotInverse = this.pivot.matrixWorld.clone().invert();
+    const localCentroid = centroid.clone().applyMatrix4(pivotInverse);
+    const localAtoms = atoms.map((p) => {
+      const v = new THREE.Vector3(p.x, p.y, p.z).applyMatrix4(pivotInverse);
+      return { x: v.x, y: v.y, z: v.z };
+    });
+
+    // Re-frame pocket annotation centroids to pivot-local on the fly
+    const pocketCenter = new THREE.Vector3(...this.pocket.pocket_center);
+    const reframedAnnotation = {
+      ...this.pocket,
+      key_residues: (this.pocket.key_residues || []).map((r) => ({
+        ...r,
+        side_chain_centroid: [
+          r.side_chain_centroid[0] - pocketCenter.x,
+          r.side_chain_centroid[1] - pocketCenter.y,
+          r.side_chain_centroid[2] - pocketCenter.z,
+        ],
+      })),
+    };
+    const reframedVina = {
+      ligand_centroid: [
+        this.vinaBest.ligand_centroid[0] - pocketCenter.x,
+        this.vinaBest.ligand_centroid[1] - pocketCenter.y,
+        this.vinaBest.ligand_centroid[2] - pocketCenter.z,
+      ],
+    };
+
+    const result = computeScore({
+      ligandCentroid: { x: localCentroid.x, y: localCentroid.y, z: localCentroid.z },
+      ligandAtoms: localAtoms,
+      pocketAnnotation: reframedAnnotation,
+      vinaBestPose: reframedVina,
+    });
+
+    // Re-bind the camera each frame so billboard look-at uses the live XR pose.
+    if (camera) this.readout.group.userData._cam = camera;
+    this.readout.update(result);
+    if (camera) this.readout.group.lookAt(camera.position);
+    this.narrativePanel.update(dt, camera);
+
+    if (result.isBestPose && !this.bestPoseFired) {
+      this.bestPoseFired = true;
+      this.bestPoseFireTime = this.dtSinceInit;
+      this.readout.showBadge();
+      postTelemetry([
+        {
+          session_id: window.__VDV_SESSION_ID || 'anon',
+          event_type: 'best_pose_hit',
+          level: 'L1',
+          total: result.total,
+          rawDistance: result.rawDistance,
+          time_to_hit_ms: this.dtSinceInit,
+          ts: Date.now(),
+        },
+      ]);
+    }
+
+    if (this.telemetryAccumMs >= TELEMETRY_INTERVAL_MS) {
+      this.telemetryAccumMs = 0;
+      postTelemetry([
+        {
+          session_id: window.__VDV_SESSION_ID || 'anon',
+          event_type: 'score_update',
+          level: 'L1',
+          total: result.total,
+          components: result.components,
+          rawDistance: result.rawDistance,
+          ts: Date.now(),
+        },
+      ]);
+    }
+
+    this._handleLeftControllerButtons(controllers);
+  }
+
+  _handleLeftControllerButtons(controllers) {
+    const session = this.ctx.renderer.xr.getSession();
+    if (!session) return;
+    for (const source of session.inputSources) {
+      if (source.handedness !== 'left' || !source.gamepad) continue;
+      const buttons = source.gamepad.buttons || [];
+      // Quest 3S: button index 4 = A (lower), 5 = B (upper) on left controller
+      // (exact indices: trigger=0, squeeze=1, thumbstick=3, A=4, B=5)
+      const aPressed = !!buttons[4]?.pressed;
+      const bPressed = !!buttons[5]?.pressed;
+
+      if (aPressed && !this.lastButtons.A) {
+        this.narrativePanel.dismissBrief();
+      }
+      if (bPressed && !this.lastButtons.B) {
+        this._redock();
+      }
+      this.lastButtons.A = aPressed;
+      this.lastButtons.B = bPressed;
+    }
+  }
+
+  _redock() {
+    if (!this.ligand || !this.spawnTransform) return;
+    // If the ligand is currently held by a controller, detach it first.
+    if (this.ligand.parent && this.ligand.parent !== this.pivot) {
+      this.pivot.attach(this.ligand);
+    }
+    this.ligand.position.copy(this.spawnTransform.position);
+    this.ligand.quaternion.copy(this.spawnTransform.quaternion);
+    this.bestPoseFired = false;
+    this.redockCount += 1;
+    postTelemetry([
+      {
+        session_id: window.__VDV_SESSION_ID || 'anon',
+        event_type: 'redock_count',
+        level: 'L1',
+        count: this.redockCount,
+        ts: Date.now(),
+      },
+    ]);
+  }
+
+  destroy() {
+    for (const obj of this.objects) {
+      this.ctx.scene.remove(obj);
+      obj.traverse?.((c) => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+          else c.material.dispose();
+        }
+      });
+    }
+    this.objects = [];
+    this.ready = false;
+  }
+
+  getGrabbables() {
+    return this.ligand ? [this.ligand] : [];
+  }
+}
