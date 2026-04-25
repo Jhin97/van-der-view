@@ -19,6 +19,9 @@ const SPAWN_OFFSET = new THREE.Vector3(50.0, 10.0, 0.0);
 // Best-pose judgment range — relax 30 % beyond the kernel's strict
 // `BEST_POSE.distance` so docking is forgiving in VR.
 const BEST_POSE_RELAX = 1.30;
+// A composite score ≥ this also counts as a successful dock — independent
+// from the strict hBond / distance gate, so good geometry alone passes.
+const PASS_SCORE_THRESHOLD = 0.70;
 // Material colours (light blue protein, bright green ligand, semi-transparent
 // ghost target). Picked for high contrast in VR's typical dim scene.
 const PROTEIN_COLOR = 0x88aaff;
@@ -206,8 +209,23 @@ export default class LevelOneScene {
       this.narrativePanel.group.remove(this.narrativePanel.brief);
       this.narrativePanel.brief.position.set(0, -0.20, 0);
       this.narrativePanel.brief.scale.setScalar(0.42);
+      // Brief is HUD now — never let the protein occlude it.
+      this.narrativePanel.brief.material.depthTest = false;
+      this.narrativePanel.brief.material.depthWrite = false;
+      this.narrativePanel.brief.renderOrder = 998;
       this.hud.add(this.narrativePanel.brief);
     }
+    // Same for the score readout meshes — disable depth test so the
+    // bundle is always visible even if the camera enters the protein.
+    this.readout.group.traverse((c) => {
+      if (!c.material) return;
+      const mats = Array.isArray(c.material) ? c.material : [c.material];
+      for (const m of mats) {
+        m.depthTest = false;
+        m.depthWrite = false;
+      }
+      c.renderOrder = 998;
+    });
     this.narrativePanel.group.position.copy(this._uiWorldAnchor);
     this.ctx.scene.add(this.narrativePanel.group);
     this.objects.push(this.narrativePanel.group);
@@ -324,8 +342,11 @@ export default class LevelOneScene {
     const relaxedBestPose =
       result.rawDistance < BEST_POSE.distance * BEST_POSE_RELAX &&
       hBondHitsCount >= BEST_POSE.hBondHits;
+    // Composite-score pass: total >= 0.70 alone counts. Lets a user with
+    // very good fit but only one H-bond still complete the level.
+    const scorePass = result.total >= PASS_SCORE_THRESHOLD;
 
-    if ((result.isBestPose || relaxedBestPose) && !this.bestPoseFired) {
+    if ((result.isBestPose || relaxedBestPose || scorePass) && !this.bestPoseFired) {
       this.bestPoseFired = true;
       this.bestPoseFireTime = this.dtSinceInit;
       this.readout.showBadge();

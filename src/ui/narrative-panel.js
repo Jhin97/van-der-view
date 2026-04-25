@@ -184,7 +184,10 @@ export function buildNarrativePanel({
 
   function update(dtMs, camera) {
     dtSinceBoot += dtMs;
-    const autoDismissMs = (narrative.brief?.auto_dismiss_seconds ?? 15) * 1000;
+    // 15 s used to be the default; users complained the brief vanished
+    // mid-onboarding. Default 600 s now (effectively manual-dismiss only)
+    // unless the narrative.json explicitly sets a shorter value.
+    const autoDismissMs = (narrative.brief?.auto_dismiss_seconds ?? 600) * 1000;
     if (dtSinceBoot >= autoDismissMs) brief.visible = false;
     if (camera) {
       // Only billboard `brief` if it's still living inside our group (i.e.
