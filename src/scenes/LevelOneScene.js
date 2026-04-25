@@ -19,7 +19,7 @@ const BEST_POSE_BADGE_FADE_MS = 5000;
 // protein renders 50 m wide and the user is inside the molecule. Scale the
 // whole pivot down so the protein sits desk-sized in front of the user.
 // User can grip-bimanual to rescale.
-const PIVOT_SCALE = 0.025;
+const PIVOT_SCALE = 0.015;
 // Grip gesture limits — see [[experience-vr-scene-transition-tutorial-snap-patterns-2026-04-25]]
 // + [[prior-art-nanome]] (bimanual scale is the muscle memory we steal).
 const PIVOT_SCALE_MIN = 0.005;
@@ -121,15 +121,18 @@ export default class LevelOneScene {
       quaternion: ligand.quaternion.clone(),
     };
 
-    // Score readout — world-locked, NOT inside pivot, so it stays full-size
-    // when the user rescales the protein with bimanual grip.
+    // Score readout — head-locked HUD, child of camera so it stays in the
+    // top-left of the user's view regardless of model translation /
+    // rotation / scale. (User asked: "scoring 表格固定在屏幕的左上角不
+    // 要让它参与模型移动等操作".)
     this.readout = buildReadout({
       pocketCenter: { x: 0, y: 0, z: 0 },
       camera: null,
     });
-    this.readout.group.position.copy(this._uiWorldAnchor);
-    this.ctx.scene.add(this.readout.group);
-    this.objects.push(this.readout.group);
+    this.readout.group.position.set(-0.45, 0.30, -1.2);
+    this.readout.group.scale.setScalar(0.7);
+    this.ctx.camera.add(this.readout.group);
+    // Not pushed to `this.objects` — destroy handles HUD detach explicitly.
 
     // Narrative panel — also world-locked. Skip residue side-notes for now;
     // attaching them in pivot-local frame would also shrink them, and the
@@ -144,9 +147,15 @@ export default class LevelOneScene {
     this.ctx.scene.add(this.narrativePanel.group);
     this.objects.push(this.narrativePanel.group);
 
+    // Target ghost — semi-transparent green clone of the ligand at the
+    // Vina-best docked pose. Same UX as Tutorial's ghost-overlay: tells
+    // the user *where* in the protein to place the ligand. Lives inside
+    // the pivot so it scales / translates / rotates with the protein.
+    this._buildTargetGhost(ligand, pocketCenter, pivot);
+
     this.pivot = pivot;
-    // Spawn farther back so the user actually sees the whole protein.
-    this.spawn = { player: [0, 0, 1.0], camera: [0, 1.6, 1.6] };
+    // Spawn even farther so the user starts with a full view of the protein.
+    this.spawn = { player: [0, 0, 1.5], camera: [0, 1.6, 2.2] };
     this.ready = true;
 
     // Snapshot current A/B state so a held button doesn't produce a phantom
@@ -235,10 +244,9 @@ export default class LevelOneScene {
       vinaBestPose: reframedVina,
     });
 
-    // Re-bind the camera each frame so billboard look-at uses the live XR pose.
-    if (camera) this.readout.group.userData._cam = camera;
+    // Score readout is now a child of the camera (HUD), so it always faces
+    // the user without an explicit lookAt.
     this.readout.update(result);
-    if (camera) this.readout.group.lookAt(camera.position);
     this.narrativePanel.update(dt, camera);
 
     if (result.isBestPose && !this.bestPoseFired) {
@@ -282,7 +290,7 @@ export default class LevelOneScene {
     if (!session) return;
 
     let leftDown = false, rightDown = false;
-    let leftPos = null, rightPos = null;
+    let leftCtrl = null, rightCtrl = null;
 
     let idx = 0;
     for (const src of session.inputSources) {
@@ -290,15 +298,8 @@ export default class LevelOneScene {
       const gripPressed = !!src.gamepad.buttons?.[1]?.pressed; // index 1 = squeeze/grip
       const ctrl = controllers[idx];
       if (!ctrl) { idx++; continue; }
-      const pos = new THREE.Vector3();
-      ctrl.getWorldPosition(pos);
-      if (src.handedness === 'left') {
-        leftDown = gripPressed;
-        leftPos = pos;
-      } else if (src.handedness === 'right') {
-        rightDown = gripPressed;
-        rightPos = pos;
-      }
+      if (src.handedness === 'left') { leftDown = gripPressed; leftCtrl = ctrl; }
+      else if (src.handedness === 'right') { rightDown = gripPressed; rightCtrl = ctrl; }
       idx++;
     }
 
@@ -311,18 +312,31 @@ export default class LevelOneScene {
     }
 
     if (numActive === 1) {
-      const handPos = leftDown ? leftPos : rightPos;
+      // Single-hand grip = 6-DOF "grab the world": pivot follows the
+      // controller's full pose (translate + rotate). Snapshot the relative
+      // pose at grip-start; each frame reapply it so pivot rides on the
+      // controller without ever physically reparenting (which would mess
+      // with the ligand's grabbable child).
+      const ctrl = leftDown ? leftCtrl : rightCtrl;
+      if (!ctrl) return;
       if (s.active !== 1) {
         s.active = 1;
-        s.handStart = handPos.clone();
-        s.pivotPosStart = this.pivot.position.clone();
+        // relMat = ctrlWorld⁻¹ · pivotWorld
+        const ctrlInv = ctrl.matrixWorld.clone().invert();
+        s.relPivotMat = ctrlInv.multiply(this.pivot.matrixWorld);
       } else {
-        const delta = handPos.clone().sub(s.handStart);
-        this.pivot.position.copy(s.pivotPosStart).add(delta);
+        // pivot.world = ctrlWorld · relMat   (preserve current scale)
+        const newMat = ctrl.matrixWorld.clone().multiply(s.relPivotMat);
+        const _scale = new THREE.Vector3();
+        newMat.decompose(this.pivot.position, this.pivot.quaternion, _scale);
+        // _scale is the snapshot scale; we leave pivot.scale untouched so
+        // bimanual scale that may have happened earlier is preserved.
         this._syncUiAnchor();
       }
     } else {
       // Two-handed grip — bimanual scale + translate around the midpoint.
+      const leftPos = new THREE.Vector3(); leftCtrl.getWorldPosition(leftPos);
+      const rightPos = new THREE.Vector3(); rightCtrl.getWorldPosition(rightPos);
       const currentDist = leftPos.distanceTo(rightPos);
       const currentMid = leftPos.clone().add(rightPos).multiplyScalar(0.5);
       if (s.active !== 2) {
@@ -345,13 +359,56 @@ export default class LevelOneScene {
     }
   }
 
+  // Visual target: low-opacity green clone of the ligand at the Vina-best
+  // docked pose. Tells the user where to overlay their grabbed ligand.
+  _buildTargetGhost(ligand, pocketCenter, pivot) {
+    if (!this.vinaBest?.ligand_centroid) return;
+    const ghost = ligand.clone(true);
+    ghost.traverse((c) => {
+      if (!c.material) return;
+      // Materials must be cloned so we don't bleed our overrides into the
+      // grabbable real ligand.
+      c.material = Array.isArray(c.material)
+        ? c.material.map((m) => {
+            const cm = m.clone();
+            cm.transparent = true;
+            cm.opacity = 0.30;
+            cm.depthWrite = false;
+            if (cm.emissive) {
+              cm.emissive.setHex(0x06d6a0);
+              cm.emissiveIntensity = 0.7;
+            }
+            return cm;
+          })
+        : (() => {
+            const cm = c.material.clone();
+            cm.transparent = true;
+            cm.opacity = 0.30;
+            cm.depthWrite = false;
+            if (cm.emissive) {
+              cm.emissive.setHex(0x06d6a0);
+              cm.emissiveIntensity = 0.7;
+            }
+            return cm;
+          })();
+    });
+    ghost.position.set(
+      this.vinaBest.ligand_centroid[0] - pocketCenter.x,
+      this.vinaBest.ligand_centroid[1] - pocketCenter.y,
+      this.vinaBest.ligand_centroid[2] - pocketCenter.z,
+    );
+    ghost.userData.grabbable = false;
+    pivot.add(ghost);
+    this.targetGhost = ghost;
+  }
+
   _syncUiAnchor() {
-    // Keep the world-locked UI (score readout + narrative brief) attached
-    // to the pivot's WORLD position, so panning the molecule with grip
-    // brings the labels along but doesn't rescale them.
+    // Keep the world-locked narrative brief attached to the pivot's WORLD
+    // position so panning the molecule with grip brings the brief along
+    // but doesn't rescale it. Readout is now HUD-locked (child of camera)
+    // and intentionally does NOT follow.
     if (!this.pivot) return;
     this._uiWorldAnchor.copy(this.pivot.position);
-    if (this.readout) this.readout.group.position.copy(this._uiWorldAnchor);
     if (this.narrativePanel) this.narrativePanel.group.position.copy(this._uiWorldAnchor);
   }
 
@@ -399,6 +456,18 @@ export default class LevelOneScene {
   }
 
   destroy() {
+    // HUD readout is parented to the camera, not the scene — explicit detach
+    // so it doesn't survive into the next scene.
+    if (this.readout?.group?.parent) {
+      this.readout.group.parent.remove(this.readout.group);
+      this.readout.group.traverse?.((c) => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+          else c.material.dispose();
+        }
+      });
+    }
     for (const obj of this.objects) {
       this.ctx.scene.remove(obj);
       obj.traverse?.((c) => {
