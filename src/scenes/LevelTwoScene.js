@@ -40,6 +40,10 @@ const PIVOT_SCALE     = 0.015;
 const PIVOT_SCALE_MIN = 0.005;
 const PIVOT_SCALE_MAX = 0.20;
 const ROTATION_GAIN   = 2.5;
+// Pivot translation amplification — heavily-scaled-down protein at 1:1 hand
+// mapping feels sluggish to drag across the room; 2.0× makes a small wrist
+// motion meaningfully relocate the molecule.
+const TRANSLATION_GAIN = 2.0;
 
 const PROTEIN_COLOR = 0x88aaff;
 // Drop tolerance in pivot-local Å (PyMOL geometry units). At PIVOT_SCALE
@@ -396,29 +400,28 @@ export default class LevelTwoScene {
     const entry = this.barChart.bars.find((b) => b.lig.name === ligandName);
     if (!entry) return;
     const { bar, fullHeight, baseY, valueLabel, valueCanvas, valueTex } = entry;
-    const startTime = performance.now();
-    const duration = 600;
-    const tick = () => {
-      const t = Math.min(1, (performance.now() - startTime) / duration);
-      const eased = 1 - (1 - t) * (1 - t);
-      bar.scale.y = Math.max(0.0001, fullHeight * eased);
-      bar.position.y = baseY + (fullHeight * eased) / 2;
-      bar.material.opacity = 0.85 * eased;
-      if (t < 1) requestAnimationFrame(tick);
-      else {
-        const ctx = valueCanvas.getContext('2d');
-        ctx.clearRect(0, 0, 256, 64);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 40px ui-sans-serif, system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${vinaKcal.toFixed(1)}`, 128, 32);
-        valueTex.needsUpdate = true;
-        valueLabel.position.y = baseY + fullHeight + 0.03;
-        valueLabel.visible = true;
-      }
-    };
-    tick();
+
+    // Set the final visual state immediately. The previous version drove
+    // the bar-fill animation off `requestAnimationFrame`, but `window.rAF`
+    // is paused during a WebXR `immersive-vr` session on Quest, so the
+    // animation never reached its terminal state and the ΔG value label
+    // stayed hidden. Skip the animation; the bar simply pops to full
+    // height with the value rendered (the dock-success haptic + pedestal
+    // ring colour change carry the moment).
+    bar.scale.y = Math.max(0.0001, fullHeight);
+    bar.position.y = baseY + fullHeight / 2;
+    bar.material.opacity = 0.85;
+
+    const ctx = valueCanvas.getContext('2d');
+    ctx.clearRect(0, 0, 256, 64);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 40px ui-sans-serif, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${vinaKcal.toFixed(1)}`, 128, 32);
+    valueTex.needsUpdate = true;
+    valueLabel.position.y = baseY + fullHeight + 0.03;
+    valueLabel.visible = true;
   }
 
   _buildHud(data) {
@@ -723,7 +726,9 @@ export default class LevelTwoScene {
         s.pivotStartPos = this.pivot.position.clone();
         s.pivotStartQuat = this.pivot.quaternion.clone();
       } else {
-        const deltaPos = ctrlPos.clone().sub(s.ctrlStartPos);
+        // Translation amplified so a small hand motion meaningfully drags
+        // the (heavily down-scaled) protein across the bench.
+        const deltaPos = ctrlPos.clone().sub(s.ctrlStartPos).multiplyScalar(TRANSLATION_GAIN);
         this.pivot.position.copy(s.pivotStartPos).add(deltaPos);
         const deltaQuat = ctrlQuat.clone().multiply(s.ctrlStartQuat.clone().invert());
         const amp = _amplifyQuat(deltaQuat, ROTATION_GAIN);
@@ -749,7 +754,7 @@ export default class LevelTwoScene {
           Math.min(PIVOT_SCALE_MAX, s.pivotScaleStart * ratio)
         );
         this.pivot.scale.setScalar(newScale);
-        const midDelta = currentMid.clone().sub(s.bimanualMidStart);
+        const midDelta = currentMid.clone().sub(s.bimanualMidStart).multiplyScalar(TRANSLATION_GAIN);
         this.pivot.position.copy(s.pivotPosStart).add(midDelta);
         this._syncUiAnchor();
       }
