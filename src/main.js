@@ -6,7 +6,7 @@ import TutorialScene from './scenes/TutorialScene.js';
 import GameHubScene from './scenes/GameHubScene.js';
 import LevelOneScene from './scenes/LevelOneScene.js';
 import LevelTwoScene from './scenes/LevelTwoScene.js';
-// L3 cut from MVP — see GameHubScene.LEVEL_DEFS / SCENE_MAP below.
+import LevelThreeScene from './scenes/LevelThreeScene.js';
 import { PRE_QUESTIONS, POST_QUESTIONS } from './survey-questions.js';
 import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from './survey-ui.js';
 
@@ -67,6 +67,42 @@ const player = new THREE.Group();
 player.add(camera);
 scene.add(player);
 
+// ---- Persistent "← MENU" HUD button (return-to-hub) ----------------------
+// Always visible on the camera HUD when not already in the hub. Trigger-
+// click anywhere on it to bail out of the active level back to the menu.
+const _menuBtnCanvas = document.createElement('canvas');
+_menuBtnCanvas.width = 256;
+_menuBtnCanvas.height = 96;
+{
+  const ctx = _menuBtnCanvas.getContext('2d');
+  ctx.fillStyle = 'rgba(20, 30, 60, 0.92)';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, 256, 96, 16);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(120, 200, 240, 0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(2, 2, 252, 92, 14);
+  ctx.stroke();
+  ctx.fillStyle = '#06d6a0';
+  ctx.font = 'bold 38px ui-sans-serif, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('← MENU', 128, 48);
+}
+const menuBtnTex = new THREE.CanvasTexture(_menuBtnCanvas);
+menuBtnTex.colorSpace = THREE.SRGBColorSpace;
+const menuButton = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.24, 0.09),
+  new THREE.MeshBasicMaterial({
+    map: menuBtnTex, transparent: true, depthTest: false, depthWrite: false,
+  })
+);
+menuButton.position.set(0.45, 0.30, -1.2); // upper-right of HUD
+menuButton.renderOrder = 1000;
+menuButton.visible = false; // toggled in loadScene
+camera.add(menuButton);
+
 const controllerModelFactory = new XRControllerModelFactory();
 const handModelFactory = new XRHandModelFactory();
 
@@ -98,9 +134,8 @@ function updateFadeQuad() {
 const SCENE_MAP = {
   tutorial: TutorialScene,
   l1: LevelOneScene,
-  l2: LevelTwoScene, // F-005
-  // l3 dropped from the MVP scope — keep the slot null so the hub menu
-  // entry (if any leaks back in) just no-ops.
+  l2: LevelTwoScene,
+  l3: LevelThreeScene,
 };
 
 function registerScene(id, SceneClass) {
@@ -159,6 +194,10 @@ async function loadScene(sceneIdOrClass) {
   // Only commit nextScene to activeScene after init resolves so the render
   // loop never sees a scene mid-construction.
   activeScene = nextScene;
+
+  // Persistent ← MENU button is hidden in the hub (no point) and shown
+  // in any other scene as the universal escape back to the level menu.
+  menuButton.visible = !(nextScene instanceof GameHubScene);
 
   grabbables = activeScene.getGrabbables();
   if (activeScene.enableSkipShortcut) activeScene.enableSkipShortcut();
@@ -295,6 +334,17 @@ function onSelectStart(controller) {
   tempMatrix.identity().extractRotation(controller.matrixWorld);
   raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
   raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+  // First: did the user point the laser at the persistent ← MENU HUD
+  // button? If so, take them back to the hub regardless of what scene
+  // they're in.
+  if (menuButton.visible) {
+    const menuHits = raycaster.intersectObject(menuButton, false);
+    if (menuHits.length > 0) {
+      transitionToHub();
+      return;
+    }
+  }
 
   const hits = raycaster.intersectObjects(grabbables, true);
   if (hits.length > 0) {
