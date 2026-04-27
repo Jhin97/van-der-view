@@ -24,3 +24,11 @@ pipelines/data/
 pipelines/node_modules/
 pipelines/__pycache__/
 pipelines/.pytest_cache/
+
+# Hackathon scratch / oversize binaries — see docs/POST_HACKATHON_REVIEW.md §5
+*.rar
+audio.rar
+tmp/
+selection-debugging.txt
+.superpowers/
+**/.DS_Store
