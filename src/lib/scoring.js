@@ -5,7 +5,11 @@
 // THREE.Vector3 (both expose .x/.y/.z); operates only on those numbers.
 
 export const DEFAULT_WEIGHTS = { alpha: 0.6, beta: 0.3, gamma: 0.1 };
-export const DEFAULT_THRESHOLDS = { hBondDist: 3.5, clashDist: 1.0, dMax: 10.0 };
+// `contactDist` gates the whole score: if no ligand atom is within this many Å
+// of any key-residue side-chain centroid, the ligand is considered "not
+// attached" and total = 0 (otherwise the distance term alone gives credit
+// just for being roughly near the ideal docked centroid).
+export const DEFAULT_THRESHOLDS = { hBondDist: 3.5, clashDist: 1.0, dMax: 10.0, contactDist: 5.0 };
 export const BEST_POSE = { distance: 3.0, hBondHits: 2 };
 
 const HBOND_ROLES = new Set(['h_bond_donor', 'h_bond_acceptor']);
@@ -59,6 +63,7 @@ export function computeScore({
 
   let hBondHits = 0;
   let clashes = 0;
+  let minNearestAtomDist = Infinity;
   const residues = pocketAnnotation.key_residues || [];
 
   for (const residue of residues) {
@@ -71,15 +76,22 @@ export function computeScore({
       if (d < thresholds.clashDist) clashes += 1;
     }
 
+    if (nearestAtomDist < minNearestAtomDist) minNearestAtomDist = nearestAtomDist;
+
     if (HBOND_ROLES.has(residue.role) && nearestAtomDist < thresholds.hBondDist) {
       hBondHits += 1;
     }
   }
 
-  const total =
-    weights.alpha * distanceTerm +
-    weights.beta * hBondHits -
-    weights.gamma * clashes;
+  // Contact gate: if no ligand atom is within `contactDist` of any pocket
+  // residue, the ligand isn't actually touching the protein → score = 0.
+  // Prevents the distance-to-best-pose term from awarding credit just for
+  // being roughly near the ideal centroid in space.
+  const isAttached = minNearestAtomDist < thresholds.contactDist;
+
+  const total = isAttached
+    ? weights.alpha * distanceTerm + weights.beta * hBondHits - weights.gamma * clashes
+    : 0;
 
   const isBestPose =
     rawDistance < BEST_POSE.distance && hBondHits >= BEST_POSE.hBondHits;
