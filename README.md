@@ -9,47 +9,7 @@ npm install
 npm run dev          # Vite frontend on :5173 (HTTPS for WebXR)
 ```
 
-## Telemetry Server
-
-Survey responses are collected via a separate Express + SQLite backend.
-
-```bash
-# Terminal 1: start the telemetry API
-npm run server       # Express on :3001
-
-# Terminal 2: start the Vite frontend (proxies /api → :3001)
-npm run dev
-
-# Or both at once:
-npm run dev:all
-```
-
-The Vite dev server proxies `/api` requests to `http://localhost:3001` automatically.
-
-### Endpoints
-
-- `POST /api/telemetry` — submit survey responses (array of objects)
-- `GET /api/telemetry` — retrieve all stored responses
-
-### Database
-
-Responses are stored in `data/telemetry.db` (SQLite, git-ignored).
-Override the path with `VDV_DB_PATH` environment variable.
-
-## Effect-Size Analysis
-
-After collecting survey data, compute Cohen's d per comparable pre/post Likert item:
-
-```bash
-npm run effect-size
-# Output: CSV with columns item_id, pre_mean, post_mean, mean_diff, pooled_sd, cohens_d, n_pre, n_post
-```
-
-The script reads from `data/telemetry.db` by default. Pass a custom path as an argument:
-
-```bash
-node scripts/effect-size.mjs path/to/other.db
-```
+Survey responses are stored in the browser's `sessionStorage` under the `vdv-surveys` key and are not transmitted anywhere.
 
 ## Survey Flow
 

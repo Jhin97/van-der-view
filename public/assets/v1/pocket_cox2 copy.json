@@ -1,0 +1,29 @@
+{
+  "pocket_center": [0.0, 0.0, 0.0],
+  "key_residues": [
+    {
+      "id": "ARG120",
+      "name": "ARG",
+      "ca_xyz": [3.0, 0.5, 1.0],
+      "side_chain_centroid": [3.2, 0.6, 1.0]
+    },
+    {
+      "id": "VAL523",
+      "name": "VAL",
+      "ca_xyz": [-1.5, 2.0, -1.0],
+      "side_chain_centroid": [-1.5, 2.5, -1.0]
+    },
+    {
+      "id": "TYR385",
+      "name": "TYR",
+      "ca_xyz": [2.0, -1.5, -2.0],
+      "side_chain_centroid": [2.0, -1.5, -2.5]
+    },
+    {
+      "id": "SER530",
+      "name": "SER",
+      "ca_xyz": [-2.0, -1.0, 2.0],
+      "side_chain_centroid": [-2.5, -1.0, 2.0]
+    }
+  ]
+}

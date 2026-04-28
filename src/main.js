@@ -14,19 +14,15 @@ import { showSurvey, showThankYou, createFinishButton, removeFinishButton } from
 const sessionId = crypto.randomUUID();
 window.__VDV_SESSION_ID = sessionId;
 
-// --- Telemetry POST --------------------------------------------------------
-async function submitSurvey(responses) {
+// --- Survey persistence ----------------------------------------------------
+// Append responses to sessionStorage under `vdv-surveys`. Same try/catch
+// silent-fail pattern as loadProgress/saveProgress below.
+function appendSurveyResponses(responses) {
   try {
-    const res = await fetch('/api/telemetry', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(responses),
-    });
-    if (!res.ok) console.error('[telemetry] submit failed', res.status);
-    else console.log('[telemetry] submitted', responses.length, 'responses');
-  } catch (err) {
-    console.error('[telemetry] network error', err);
-  }
+    const key = 'vdv-surveys';
+    const existing = JSON.parse(sessionStorage.getItem(key) || '[]');
+    sessionStorage.setItem(key, JSON.stringify(existing.concat(responses)));
+  } catch {}
 }
 
 // --- Three.js scene setup --------------------------------------------------
@@ -99,7 +95,6 @@ const SCENE_MAP = {
   tutorial: TutorialScene,
   l1: LevelOneScene,
   l2: LevelTwoScene,
-  l3: LevelThreeScene, // F-006
 };
 
 function registerScene(id, SceneClass) {
@@ -491,7 +486,7 @@ async function runPreSurvey() {
     'pre',
     sessionId,
   );
-  await submitSurvey(responses);
+  appendSurveyResponses(responses);
   startExperience();
 }
 
@@ -503,7 +498,7 @@ async function runPostSurvey() {
     'post',
     sessionId,
   );
-  await submitSurvey(responses);
+  appendSurveyResponses(responses);
   animating = false;
   showThankYou();
 }
