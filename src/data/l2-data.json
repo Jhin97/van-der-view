@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "target": "cox2",
-  "comment": "Literature-grounded AutoDock Vina docking scores for five NSAID analogs against COX-2 (PDB 1CX2). Until F-002's pipeline outputs ship to /assets/v1/vina_results.json, these values stand in as ground truth for L2's ranking exercise. Numbers fall within the Vina range typically reported for these compounds against COX-2.",
+  "comment": "Literature-grounded AutoDock Vina docking scores for five NSAID analogs against COX-2 (PDB 1CX2). Until F-002's pipeline outputs ship to /assets/vina_results.json, these values stand in as ground truth for L2's ranking exercise. Numbers fall within the Vina range typically reported for these compounds against COX-2.",
   "ligands": [
     {
       "name": "celecoxib",

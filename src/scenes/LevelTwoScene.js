@@ -32,7 +32,7 @@ import * as THREE from 'three';
 import { loadGLB, loadJSON } from '../lib/asset-loader.js';
 import { buildNarrativePanel } from '../ui/narrative-panel.js';
 
-const ASSET_BASE = '/assets/v1';
+const ASSET_BASE = '/assets';
 const DATA_PATH  = '/src/data/l2-data.json';
 const TELEMETRY_ENDPOINT = '/api/telemetry';
 

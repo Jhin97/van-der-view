@@ -1,6 +1,6 @@
 .PHONY: help env install fetch clean annotate ligands dock meshes assets test fmt clean-data
 
-ASSETS_DIR := ../public/assets/v1
+ASSETS_DIR := ../public/assets
 DATA_DIR := data
 
 help:

@@ -3,7 +3,7 @@ dist
 .vite
 *.log
 .DS_Store
-data/
+/data/
 
 # Editor temp files
 .idea/

@@ -10,7 +10,7 @@ import { computeScore, BEST_POSE } from '../lib/scoring.js';
 import { buildReadout } from '../ui/score-readout.js';
 import { buildNarrativePanel } from '../ui/narrative-panel.js';
 
-const ASSET_BASE = '/assets/v1';
+const ASSET_BASE = '/assets';
 const NARRATIVE_PATH = '/src/data/l1-narrative.json';
 // Ligand spawns 50 Å away from the pocket centre — clear of the protein's
 // bounding sphere (~25 Å radius from active site). User pulls the ligand
