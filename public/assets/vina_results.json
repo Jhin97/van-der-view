@@ -1,0 +1,9 @@
+{
+  "runs": [
+    { "ligand": "celecoxib",  "target": "cox2", "best_pose": { "ligand_centroid": [0.0, 0.0, 0.0], "affinity_kcal_mol": -10.6 } },
+    { "ligand": "rofecoxib",  "target": "cox2", "best_pose": { "ligand_centroid": [0.0, 0.0, 0.0], "affinity_kcal_mol":  -9.8 } },
+    { "ligand": "diclofenac", "target": "cox2", "best_pose": { "ligand_centroid": [0.0, 0.0, 0.0], "affinity_kcal_mol":  -8.5 } },
+    { "ligand": "naproxen",   "target": "cox2", "best_pose": { "ligand_centroid": [0.0, 0.0, 0.0], "affinity_kcal_mol":  -7.9 } },
+    { "ligand": "ibuprofen",  "target": "cox2", "best_pose": { "ligand_centroid": [0.0, 0.0, 0.0], "affinity_kcal_mol":  -7.4 } }
+  ]
+}
