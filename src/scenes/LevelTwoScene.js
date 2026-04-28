@@ -34,7 +34,6 @@ import { buildNarrativePanel } from '../ui/narrative-panel.js';
 
 const ASSET_BASE = '/assets/v1';
 const DATA_PATH  = '/src/data/l2-data.json';
-const TELEMETRY_ENDPOINT = '/api/telemetry';
 
 const PIVOT_SCALE     = 0.015;
 const PIVOT_SCALE_MIN = 0.005;
@@ -61,16 +60,6 @@ const PED_ARC_Z_BASE = 0.50;
 const PED_ARC_Z_DEPTH = 0.25;
 
 const LIGAND_HANDHELD_SCALE = 0.018; // ligand GLB Å → world m
-
-async function postTelemetry(events) {
-  try {
-    await fetch(TELEMETRY_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(events),
-    });
-  } catch (err) { console.warn('[L2 telemetry]', err); }
-}
 
 // ---- shared helpers (same shape as LevelOneScene) -----------------------
 
@@ -140,7 +129,6 @@ export default class LevelTwoScene {
     this.successCard = null;
 
     this.lastButtons = { A: false };
-    this.telemetryAccumMs = 0;
 
     this._gripState     = { active: 0 };
     this._uiWorldAnchor = new THREE.Vector3();
@@ -213,13 +201,6 @@ export default class LevelTwoScene {
     this._buildSuccessCard();
 
     this.ready = true;
-    postTelemetry([{
-      session_id: window.__VDV_SESSION_ID || 'anon',
-      event_type: 'level_start',
-      level: 'L2',
-      target: 'cox2',
-      ts: Date.now(),
-    }]);
   }
 
   _buildPocketTarget(pivot) {
@@ -595,8 +576,6 @@ export default class LevelTwoScene {
   update(dt, controllers) {
     if (!this.ready) return;
 
-    this.telemetryAccumMs += dt;
-
     const grabbed = this._findGrabbedLigand(controllers);
     this._renderHud(grabbed?.userData?.ligandData ?? null);
 
@@ -668,15 +647,6 @@ export default class LevelTwoScene {
       }
     }
 
-    postTelemetry([{
-      session_id: window.__VDV_SESSION_ID || 'anon',
-      event_type: 'l2_dock',
-      ligand: lig.name,
-      vina_kcal: lig.vina_kcal,
-      activation_index: this.activated.size,
-      ts: Date.now(),
-    }]);
-
     if (this.activated.size === this.pedestals.length && !this.completed) {
       this._showComplete();
     }
@@ -685,12 +655,6 @@ export default class LevelTwoScene {
   _showComplete() {
     this.completed = true;
     this._showSuccessCard();
-    postTelemetry([{
-      session_id: window.__VDV_SESSION_ID || 'anon',
-      event_type: 'level_complete',
-      level: 'L2',
-      ts: Date.now(),
-    }]);
     // No auto-transition: surface a persistent "Trigger to return" prompt
     // once the success-card fade-out finishes; user dismisses on their own.
     this._completeTimer = setTimeout(() => {

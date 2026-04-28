@@ -65,7 +65,6 @@ function createLigand() {
   mesh.name = 'celecoxib-fallback';
   return mesh;
 }
-const TELEMETRY_INTERVAL_MS = 1000;
 const BEST_POSE_BADGE_FADE_MS = 5000;
 // PyMOL exports geometry in Å (1 unit = 1 Å). At unit Three scale a 5 nm
 // protein renders 50 m wide and the user is inside the molecule. Scale the
@@ -81,7 +80,16 @@ const PIVOT_SCALE_MAX = 0.20;
 // "grab the world" metaphor honest).
 const ROTATION_GAIN = 2.5;
 
-const TELEMETRY_ENDPOINT = '/api/telemetry';
+// Best-pose relaxation: kernel's strict 3 Å threshold is unrealistic in VR,
+// so success fires at 3 Å × BEST_POSE_RELAX while keeping the strict H-bond
+// requirement (chemistry stays earned).
+const BEST_POSE_RELAX = 2.5;
+// Composite-score pass threshold — total ≥ this counts as a successful dock
+// even without the H-bond gate (handles "very good fit, only one H-bond").
+const PASS_SCORE_THRESHOLD = 0.70;
+// Target-ghost colour — semi-transparent green clone of the ligand at the
+// Vina-best pose (matches the dock-success accent used elsewhere).
+const GHOST_COLOR = 0x06d6a0;
 
 // Stretch the angle of a quaternion by a gain factor (preserves axis).
 // Used to amplify wrist rotation when scaling pivot rotation in grip mode.
@@ -143,18 +151,6 @@ function _addStickOverlay(root, lineColorHex = 0x111122, angleThresholdDeg = 20)
   return mats;
 }
 
-async function postTelemetry(events) {
-  try {
-    await fetch(TELEMETRY_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(events),
-    });
-  } catch (err) {
-    console.warn('[L1 telemetry]', err);
-  }
-}
-
 export default class LevelOneScene {
   constructor(ctx) {
     this.ctx = ctx; // { scene, player, renderer }
@@ -169,9 +165,7 @@ export default class LevelOneScene {
     this.narrativePanel = null;
     this.bestPoseFired = false;
     this.bestPoseFireTime = 0;
-    this.telemetryAccumMs = 0;
     this.dtSinceInit = 0;
-    this.redockCount = 0;
     this.lastButtons = { A: false, B: false }; // edge detection on left controller
     // Scene-manager callback. Must be `null` (not undefined) so main.js's
     // loadScene() wires it: `if (next.onComplete !== undefined) next.onComplete = ...`.
@@ -344,17 +338,6 @@ export default class LevelOneScene {
     // Snapshot current A/B state so a held button doesn't produce a phantom
     // first-frame action (P0-2).
     this._snapshotButtons();
-
-    postTelemetry([
-      {
-        session_id: window.__VDV_SESSION_ID || crypto.randomUUID(),
-        event_type: 'level_start',
-        level: 'L1',
-        target: 'cox2',
-        ligand: 'celecoxib',
-        ts: Date.now(),
-      },
-    ]);
   }
 
   _snapshotButtons() {
@@ -372,7 +355,6 @@ export default class LevelOneScene {
     if (!this.ready || !this.ligand) return;
 
     this.dtSinceInit += dt;
-    this.telemetryAccumMs += dt;
 
     // Resolve current camera (XR session-bound when presenting, else null).
     const xr = this.ctx.renderer.xr;
@@ -455,32 +437,6 @@ export default class LevelOneScene {
       this._completeTimer = setTimeout(() => {
         if (this.onComplete) this.onComplete();
       }, 3200);
-      postTelemetry([
-        {
-          session_id: window.__VDV_SESSION_ID || 'anon',
-          event_type: 'best_pose_hit',
-          level: 'L1',
-          total: result.total,
-          rawDistance: result.rawDistance,
-          time_to_hit_ms: this.dtSinceInit,
-          ts: Date.now(),
-        },
-      ]);
-    }
-
-    if (this.telemetryAccumMs >= TELEMETRY_INTERVAL_MS) {
-      this.telemetryAccumMs = 0;
-      postTelemetry([
-        {
-          session_id: window.__VDV_SESSION_ID || 'anon',
-          event_type: 'score_update',
-          level: 'L1',
-          total: result.total,
-          components: result.components,
-          rawDistance: result.rawDistance,
-          ts: Date.now(),
-        },
-      ]);
     }
 
     this._handleLeftControllerButtons(controllers);
@@ -580,6 +536,7 @@ export default class LevelOneScene {
   // Visual target: low-opacity green clone of the ligand at the Vina-best
   // docked pose. Tells the user where to overlay their grabbed ligand.
   _buildTargetGhost(ligand, pocketCenter, pivot) {
+    if (!ligand) return; // GLB missing — skip ghost overlay
     if (!this.vinaBest?.ligand_centroid) return;
     const ghost = ligand.clone(true);
     ghost.traverse((c) => {
@@ -724,16 +681,6 @@ export default class LevelOneScene {
     this.ligand.position.copy(this.spawnTransform.position);
     this.ligand.quaternion.copy(this.spawnTransform.quaternion);
     this.bestPoseFired = false;
-    this.redockCount += 1;
-    postTelemetry([
-      {
-        session_id: window.__VDV_SESSION_ID || 'anon',
-        event_type: 'redock_count',
-        level: 'L1',
-        count: this.redockCount,
-        ts: Date.now(),
-      },
-    ]);
   }
 
   destroy() {

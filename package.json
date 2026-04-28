@@ -8,9 +8,6 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "server": "node server/index.js",
-    "dev:all": "node server/index.js & vite --host 0.0.0.0",
-    "effect-size": "node scripts/effect-size.mjs",
     "tunnel": "node scripts/quest-tunnel.mjs",
     "mirror": "node scripts/quest-mirror.mjs",
     "quest": "node scripts/quest-tunnel.mjs && node scripts/quest-mirror.mjs",
@@ -23,9 +20,6 @@
     "vitest": "^1.6.0"
   },
   "dependencies": {
-    "better-sqlite3": "^11.7.0",
-    "cors": "^2.8.5",
-    "express": "^4.21.1",
     "three": "^0.169.0"
   }
 }

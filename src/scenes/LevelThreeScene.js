@@ -29,20 +29,6 @@ export default class LevelThreeScene {
     showSelectivityHUD();
     this.phase = 'viewing';
     this.viewingTimer = 0;
-
-    // Post telemetry for level start
-    try {
-      fetch('/api/telemetry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([{
-          session_id: window.__VDV_SESSION_ID || crypto.randomUUID(),
-          event_type: 'level_start',
-          level: 'L3',
-          ts: Date.now(),
-        }]),
-      });
-    } catch {}
   }
 
   update(dt, controllers) {

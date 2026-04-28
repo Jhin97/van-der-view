@@ -14,7 +14,6 @@ const LEVEL_DEFS = [
   // L3 (Selectivity) cut from MVP scope.
 ];
 
-const UNLOCK_ORDER = ['tutorial', 'l1', 'l2'];
 
 const CANVAS_W = 768;
 const CANVAS_H = 512;
@@ -75,10 +74,8 @@ export default class GameHubScene {
     this._renderMenu();
   }
 
-  isUnlocked(sceneId) {
-    const idx = UNLOCK_ORDER.indexOf(sceneId);
-    if (idx <= 0) return true;
-    return this.progress[UNLOCK_ORDER[idx - 1]];
+  isUnlocked(/* sceneId */) {
+    return true;
   }
 
   // ---- menu construction --------------------------------------------------
