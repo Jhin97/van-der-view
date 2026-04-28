@@ -219,6 +219,11 @@ export default class LevelOneScene {
     // Build pivot — the centre of all scene objects
     const pivot = new THREE.Group();
     pivot.position.set(0, 1.0, -0.8);
+    // PDB geometry is in Å — without PIVOT_SCALE a 5 nm protein renders 50 m
+    // wide and the user spawns inside the molecule. Procedural fallbacks are
+    // already authored in world units, so only scale down when a real GLB
+    // loaded.
+    if (cox2Surface || cox2Cartoon) pivot.scale.setScalar(PIVOT_SCALE);
     this.ctx.scene.add(pivot);
     this.objects.push(pivot);
     this._uiWorldAnchor.copy(pivot.position);
@@ -251,7 +256,18 @@ export default class LevelOneScene {
     } else {
       // Procedural fallback: a small dodecahedron for celecoxib
       const fallbackLigand = createLigand();
-      fallbackLigand.position.copy(SPAWN_OFFSET);
+      // SPAWN_OFFSET (0.6) is in Å for the GLB path (≈9 mm after PIVOT_SCALE).
+      // The procedural protein is unscaled (~0.6 m radius), so use a much
+      // larger world-unit offset and bump the ligand size for visibility from
+      // the new spawn distance (~9 m away).
+      fallbackLigand.position.set(2.5, 0, 0);
+      fallbackLigand.scale.setScalar(5.0);
+      fallbackLigand.traverse?.((c) => {
+        if (c.material?.emissive) {
+          c.material.emissive.setHex(0xffaa33);
+          c.material.emissiveIntensity = 1.4;
+        }
+      });
       fallbackLigand.userData.grabbable = true;
       pivot.add(fallbackLigand);
       this.ligand = fallbackLigand;
@@ -331,8 +347,10 @@ export default class LevelOneScene {
     this._buildSuccessCard();
 
     this.pivot = pivot;
-    // Spawn even farther so the user starts with a full view of the protein.
-    this.spawn = { player: [0, 0, 1.5], camera: [0, 1.6, 2.2] };
+    // Spawn far enough back that the player starts well clear of the protein
+    // hull — the procedural fallback (no PIVOT_SCALE) is ~1 m diameter at
+    // pivot z=-0.8, so push the player back to z=5 to keep ≥ 5 m clearance.
+    this.spawn = { player: [0, 0, 5.0], camera: [0, 1.6, 3.0] };
     this.ready = true;
 
     // Snapshot current A/B state so a held button doesn't produce a phantom
