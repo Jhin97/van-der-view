@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>van-der-view — Investor Pitch</title>
+<meta name="description" content="van-der-view: see the forces you were only allowed to imagine. A VR-native platform for drug discovery research and teaching.">
+<style>
+/* ============================================================
+   RESET & ROOT
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-base:       #05070E;
+  --bg-surface:    #0E1426;
+  --cyan:          #22D3EE;
+  --magenta:       #F472B6;
+  --violet:        #8B5CF6;
+  --ink-high:      #F8FAFC;
+  --ink-mid:       #94A3B8;
+  --hairline:      #1E293B;
+
+  --font-display: -apple-system, "Helvetica Neue", "Arial", sans-serif;
+  --font-mono:    "Menlo", "Consolas", "Courier New", monospace;
+
+  --slide-count: 7;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--ink-high);
+  font-family: var(--font-display);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   SCROLL-SNAP CONTAINER
+   ============================================================ */
+main {
+  height: 100vh;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+
+section {
+  min-height: 100vh;
+  scroll-snap-align: start;
+  display: grid;
+  position: relative;
+  padding: clamp(2rem, 5vw, 4rem) clamp(2rem, 8vw, 7rem);
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* ============================================================
+   TYPOGRAPHY SYSTEM
+   ============================================================ */
+.slide-number {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--ink-mid);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+  opacity: 0.6;
+}
+
+h1 {
+  font-size: clamp(3.2rem, 7vw, 6rem);
+  font-weight: 800;
+  line-height: 1.0;
+  letter-spacing: -0.03em;
+  color: var(--ink-high);
+}
+
+h2 {
+  font-size: clamp(2rem, 4.5vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  color: var(--ink-high);
+  margin-bottom: 0.75rem;
+}
+
+.sub-headline {
+  font-size: clamp(0.9rem, 1.8vw, 1.15rem);
+  color: var(--ink-mid);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  margin-bottom: 2rem;
+  max-width: 56ch;
+}
+
+.body-bullets {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.body-bullets li {
+  font-size: clamp(0.85rem, 1.5vw, 1rem);
+  color: var(--ink-mid);
+  padding-left: 1.2rem;
+  position: relative;
+  line-height: 1.5;
+}
+
+.body-bullets li::before {
+  content: '—';
+  position: absolute;
+  left: 0;
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+.body-bullets li strong {
+  color: var(--ink-high);
+  font-weight: 600;
+}
+
+/* ============================================================
+   TWO-COLUMN LAYOUT (text + visual)
+   ============================================================ */
+.slide-inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(2rem, 5vw, 5rem);
+  align-items: center;
+  width: 100%;
+}
+
+.slide-inner.visual-left {
+  grid-template-columns: 1fr 1fr;
+}
+
+.slide-inner.visual-left .slide-text { order: 2; }
+.slide-inner.visual-left .slide-visual { order: 1; }
+
+.slide-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.slide-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slide-visual svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Full-width visual slides */
+.slide-fullwidth {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2rem;
+}
+
+.slide-fullwidth .slide-text-top {
+  width: 100%;
+  max-width: 900px;
+}
+
+.slide-fullwidth .slide-visual-wide {
+  width: 100%;
+  max-width: 1100px;
+}
+
+/* ============================================================
+   HERO SLIDE (1) — special centering
+   ============================================================ */
+#slide-1 {
+  background:
+    radial-gradient(ellipse 60% 60% at 50% 50%, #0E1426 0%, #05070E 70%);
+  align-items: center;
+  justify-items: center;
+}
+
+#slide-1 .hero-layout {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4rem;
+  align-items: center;
+  width: 100%;
+  max-width: 1200px;
+}
+
+#slide-1 .hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+#slide-1 h1 {
+  font-size: clamp(4rem, 9vw, 7rem);
+  background: linear-gradient(135deg, var(--cyan) 0%, var(--violet) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.4rem;
+}
+
+.hero-sub {
+  font-family: var(--font-mono);
+  font-size: clamp(0.85rem, 1.6vw, 1.05rem);
+  color: var(--ink-mid);
+  letter-spacing: 0.06em;
+  margin-bottom: 2.5rem;
+}
+
+.hero-version {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--ink-mid);
+  letter-spacing: 0.12em;
+  opacity: 0.5;
+  margin-top: 3rem;
+  text-align: right;
+}
+
+/* ============================================================
+   DOT NAVIGATOR
+   ============================================================ */
+#dot-nav {
+  position: fixed;
+  right: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  z-index: 100;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hairline);
+  border: 1px solid var(--ink-mid);
+  cursor: pointer;
+  transition: background 0.3s, transform 0.3s, border-color 0.3s;
+  opacity: 0.6;
+}
+
+.dot:hover {
+  opacity: 1;
+  transform: scale(1.3);
+  border-color: var(--cyan);
+}
+
+.dot.active {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  transform: scale(1.25);
+  opacity: 1;
+}
+
+/* ============================================================
+   ACCENT COLORS
+   ============================================================ */
+.accent-cyan    { color: var(--cyan); }
+.accent-magenta { color: var(--magenta); }
+.accent-violet  { color: var(--violet); }
+
+/* ============================================================
+   SVG SHARED STYLES
+   ============================================================ */
+.svg-caption {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  fill: var(--ink-mid);
+  letter-spacing: 0.05em;
+}
+
+.svg-caption-cyan {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  fill: var(--cyan);
+  letter-spacing: 0.05em;
+}
+
+/* ============================================================
+   SLIDE 6 — centered layout variant
+   ============================================================ */
+#slide-6 {
+  align-items: center;
+  justify-items: center;
+}
+#slide-6 .loop-layout {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3rem;
+  align-items: center;
+  width: 100%;
+  max-width: 1100px;
+}
+
+/* ============================================================
+   SLIDE 7 — closing
+   ============================================================ */
+#slide-7 {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#slide-7 .closing-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  width: 100%;
+  max-width: 1200px;
+  align-items: start;
+}
+
+.closing-tagline {
+  font-size: clamp(1rem, 2.2vw, 1.5rem);
+  font-weight: 700;
+  color: var(--ink-high);
+  letter-spacing: -0.015em;
+  margin-top: 1.5rem;
+  line-height: 1.3;
+}
+
+.closing-cta {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--ink-mid);
+  letter-spacing: 0.06em;
+  margin-top: 0.75rem;
+}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+footer {
+  text-align: center;
+  padding: 2rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-mid);
+  letter-spacing: 0.08em;
+  opacity: 0.5;
+  border-top: 1px solid var(--hairline);
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes ribbon-breathe {
+  0%,100% { transform: scale(1); }
+  50%      { transform: scale(1.02); }
+}
+
+@keyframes glow-pulse {
+  0%,100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+@keyframes dot-ride {
+  0%   { offset-distance: 0%; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+
+.ribbon-breathe {
+  animation: ribbon-breathe 4s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .ribbon-breathe,
+  .glow-pulse { animation: none; }
+
+  [attributeName="stroke-dashoffset"],
+  [attributeName="r"],
+  [attributeName="opacity"] { animation: none; }
+}
+
+/* ============================================================
+   PRINT / PDF EXPORT
+   ============================================================ */
+@media print {
+  main {
+    height: auto;
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+
+  section {
+    min-height: auto;
+    height: auto;
+    scroll-snap-align: none;
+    page-break-after: always;
+    break-after: page;
+    padding: 1.5cm 2cm;
+  }
+
+  #dot-nav { display: none; }
+  footer    { page-break-after: avoid; }
+
+  body { background: #fff; color: #111; }
+  :root {
+    --bg-base:    #fff;
+    --bg-surface: #f5f5f5;
+    --ink-high:   #111;
+    --ink-mid:    #555;
+    --hairline:   #ddd;
+  }
+
+  h1, h2 { color: #111; }
+  .body-bullets li { color: #444; }
+  .body-bullets li::before { color: #0891b2; }
+}
+
+/* ============================================================
+   RESPONSIVE FLOOR
+   ============================================================ */
+@media (max-width: 900px) {
+  .slide-inner,
+  #slide-1 .hero-layout,
+  #slide-6 .loop-layout,
+  #slide-7 .closing-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .slide-inner.visual-left .slide-text,
+  .slide-inner.visual-left .slide-visual { order: unset; }
+
+  .slide-visual { margin-top: 1.5rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     DOT NAVIGATOR
+     ============================================================ -->
+<nav id="dot-nav" aria-label="Slide navigation">
+  <button class="dot active" data-slide="1" aria-label="Slide 1: Hero" title="Slide 1"></button>
+  <button class="dot" data-slide="2" aria-label="Slide 2: Problem" title="Slide 2"></button>
+  <button class="dot" data-slide="3" aria-label="Slide 3: Infrastructure" title="Slide 3"></button>
+  <button class="dot" data-slide="4" aria-label="Slide 4: Experience" title="Slide 4"></button>
+  <button class="dot" data-slide="5" aria-label="Slide 5: Horizontal Future" title="Slide 5"></button>
+  <button class="dot" data-slide="6" aria-label="Slide 6: Vertical Future" title="Slide 6"></button>
+  <button class="dot" data-slide="7" aria-label="Slide 7: Closing" title="Slide 7"></button>
+</nav>
+
+<main id="main-scroll">
+
+<!-- ============================================================
+     SLIDE 1 — HERO
+     ============================================================ -->
+<section id="slide-1" aria-labelledby="s1-heading">
+  <div class="hero-layout">
+    <div class="hero-text">
+      <p class="slide-number">01 / 07 — Hero</p>
+      <h1 id="s1-heading">van-der-view</h1>
+      <p class="hero-sub">See the forces you were only allowed to imagine.</p>
+      <ul class="body-bullets">
+        <li>A VR-native platform for drug discovery research and teaching</li>
+        <li>Built on an agent-coordination substrate that scales across domains</li>
+        <li>For chemists, students, and any team that thinks in 3D</li>
+      </ul>
+      <p class="hero-version">v0.1 — research preview</p>
+    </div>
+
+    <!-- HERO SVG: protein ribbon + ligand + vdW contact spheres -->
+    <div class="slide-visual">
+      <svg viewBox="0 0 420 420" width="420" height="420"
+           xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-labelledby="s1-svg-title s1-svg-desc">
+        <title id="s1-svg-title">Protein ribbon with docked ligand</title>
+        <desc id="s1-svg-desc">A stylized cyan helical protein ribbon with a magenta ligand docked in a pocket formed by violet blobs, surrounded by faint van der Waals contact sphere indicators.</desc>
+
+        <defs>
+          <!-- Glow filter reused across slides -->
+          <filter id="glow-cyan" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="glow-magenta" x="-40%" y="-40%" width="180%" height="180%">
+            <feColorMatrix in="SourceGraphic" type="matrix"
+              values="1 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="colored"/>
+            <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="glow-strong" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <radialGradient id="grad-cyan-violet" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#22D3EE"/>
+            <stop offset="100%" stop-color="#8B5CF6"/>
+          </radialGradient>
+        </defs>
+
+        <!-- Violet blob pocket (background) -->
+        <ellipse cx="240" cy="220" rx="80" ry="60" fill="#8B5CF6" opacity="0.18"/>
+        <ellipse cx="270" cy="240" rx="60" ry="50" fill="#8B5CF6" opacity="0.22"/>
+        <ellipse cx="255" cy="205" rx="55" ry="45" fill="#8B5CF6" opacity="0.15"/>
+
+        <!-- Protein ribbon (breathing group) -->
+        <g class="ribbon-breathe" filter="url(#glow-cyan)">
+          <!-- Alpha helix — dashed sinusoidal stroke path -->
+          <path d="M 60 300 C 80 260, 120 260, 140 300
+                      C 160 340, 200 340, 220 300
+                      C 240 260, 280 260, 300 300
+                      C 320 340, 355 330, 360 280"
+                fill="none" stroke="#22D3EE" stroke-width="3.5"
+                stroke-dasharray="12 5" opacity="0.9"/>
+          <!-- Beta strand lines -->
+          <path d="M 60 160 L 160 160" stroke="#22D3EE" stroke-width="4" opacity="0.6"/>
+          <path d="M 80 175 L 180 175" stroke="#22D3EE" stroke-width="2.5" opacity="0.4"/>
+          <!-- Loop connector -->
+          <path d="M 160 160 C 200 150, 220 180, 230 210"
+                fill="none" stroke="#22D3EE" stroke-width="2.5" opacity="0.7"
+                stroke-dasharray="8 4"/>
+          <!-- Second helix -->
+          <path d="M 340 130 C 350 100, 370 90, 380 120
+                      C 390 150, 370 165, 360 180"
+                fill="none" stroke="#22D3EE" stroke-width="3"
+                stroke-dasharray="10 4" opacity="0.65"/>
+        </g>
+
+        <!-- vdW contact sphere indicators (faint dotted radials) -->
+        <circle cx="248" cy="222" r="50" fill="none" stroke="#22D3EE"
+                stroke-dasharray="2 6" stroke-width="1" opacity="0.35"/>
+        <circle cx="248" cy="222" r="70" fill="none" stroke="#8B5CF6"
+                stroke-dasharray="2 6" stroke-width="1" opacity="0.2"/>
+        <circle cx="248" cy="222" r="90" fill="none" stroke="#F472B6"
+                stroke-dasharray="2 6" stroke-width="1" opacity="0.15"/>
+
+        <!-- Ligand glyph: hexagon + tail in pocket -->
+        <g filter="url(#glow-magenta)">
+          <!-- Hexagon ring -->
+          <polygon points="248,195 264,203 264,221 248,229 232,221 232,203"
+                   fill="none" stroke="#F472B6" stroke-width="2.5"/>
+          <!-- Substituent tail 1 -->
+          <line x1="264" y1="203" x2="282" y2="192" stroke="#F472B6" stroke-width="2"/>
+          <circle cx="282" cy="192" r="5" fill="#F472B6" opacity="0.9"/>
+          <!-- Substituent tail 2 -->
+          <line x1="232" y1="221" x2="215" y2="230" stroke="#22D3EE" stroke-width="2"/>
+          <circle cx="215" cy="230" r="5" fill="#22D3EE" opacity="0.9"/>
+          <!-- Central atom -->
+          <circle cx="248" cy="212" r="7" fill="#F472B6" opacity="0.85"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 2 — PROBLEM (Act 1)
+     ============================================================ -->
+<section id="slide-2" aria-labelledby="s2-heading">
+  <div class="slide-fullwidth" style="align-items:flex-start;">
+    <div class="slide-text-top">
+      <p class="slide-number">02 / 07 — The Problem</p>
+      <h2 id="s2-heading">Sixty years of teaching chemistry on paper.</h2>
+      <p class="sub-headline">A 3D science taught with 2D tools is an epistemic bug, not a tooling one.</p>
+      <ul class="body-bullets">
+        <li>Chirality, induced fit, H-bond directionality — invisible on a chalkboard</li>
+        <li>Students draw flat rings on exams; they never <em>intuit</em> binding</li>
+        <li>Med-chem teams burn cycles on candidates a 3D inspection would have killed</li>
+        <li>The gap is not knowledge — it is <strong>embodiment</strong></li>
+      </ul>
+
+      <!-- Pain-point quantification: market + impact numbers -->
+      <div style="display: flex; gap: 1.4rem; flex-wrap: wrap; margin-top: 2.2rem;
+                  padding-top: 1.5rem; border-top: 1px solid #1E293B;">
+        <div style="flex: 1 1 180px; min-width: 160px;">
+          <div style="font-size: 2.4rem; font-weight: 800; color: #22D3EE;
+                      letter-spacing: -0.03em; line-height: 1; font-family: var(--font-display, sans-serif);">1M+</div>
+          <div style="font-size: 0.78rem; color: #94A3B8; margin-top: 0.45rem; line-height: 1.4;">
+            new life-science &amp; medical students enrolled in China <strong>every year</strong>
+          </div>
+        </div>
+        <div style="flex: 1 1 180px; min-width: 160px;">
+          <div style="font-size: 2.4rem; font-weight: 800; color: #F472B6;
+                      letter-spacing: -0.03em; line-height: 1; font-family: var(--font-display, sans-serif);">600+</div>
+          <div style="font-size: 0.78rem; color: #94A3B8; margin-top: 0.45rem; line-height: 1.4;">
+            Chinese universities run biology, pharma &amp; medical programs
+          </div>
+        </div>
+        <div style="flex: 1 1 180px; min-width: 160px;">
+          <div style="font-size: 2.4rem; font-weight: 800; color: #8B5CF6;
+                      letter-spacing: -0.03em; line-height: 1; font-family: var(--font-display, sans-serif);">$260B</div>
+          <div style="font-size: 0.78rem; color: #94A3B8; margin-top: 0.45rem; line-height: 1.4;">
+            global pharma R&amp;D / yr — most of it chasing 3D fit
+          </div>
+        </div>
+        <div style="flex: 1 1 180px; min-width: 160px;">
+          <div style="font-size: 2.4rem; font-weight: 800; color: #F8FAFC;
+                      letter-spacing: -0.03em; line-height: 1; font-family: var(--font-display, sans-serif);">~90%</div>
+          <div style="font-size: 0.78rem; color: #94A3B8; margin-top: 0.45rem; line-height: 1.4;">
+            of clinical candidates fail — many on geometry calls made years earlier
+          </div>
+        </div>
+      </div>
+      <p style="font-size: 0.68rem; color: #64748B; margin-top: 0.7rem;
+                font-family: monospace; letter-spacing: 0.04em;">
+        sources: China MoE 2023 cohort (生物 + 医学 + 药学) · PhRMA 2023 · Wong et&nbsp;al. 2019, Biostatistics
+      </p>
+    </div>
+
+    <!-- SPLIT-PANEL SVG: professor vs real binding pocket -->
+    <div class="slide-visual-wide">
+      <svg viewBox="0 0 1200 560" width="100%" height="auto"
+           xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-labelledby="s2-svg-title s2-svg-desc">
+        <title id="s2-svg-title">Professor versus real binding pocket comparison</title>
+        <desc id="s2-svg-desc">Left panel shows a grayscale stick-figure professor pointing at a flat 2D molecule on a chalkboard. Right panel shows a vivid 3D binding pocket with a ligand, H-bond contacts, and glow effects.</desc>
+
+        <defs>
+          <filter id="glow-m2" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="glow-c2" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <clipPath id="clip-left"><rect x="0" y="0" width="598" height="560"/></clipPath>
+          <clipPath id="clip-right"><rect x="602" y="0" width="598" height="560"/></clipPath>
+          <marker id="hbond-arrow-s2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 Z" fill="#F472B6"/>
+          </marker>
+          <radialGradient id="pocket-depth-s2" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.18"/>
+            <stop offset="60%" stop-color="#8B5CF6" stop-opacity="0.10"/>
+            <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.0"/>
+          </radialGradient>
+        </defs>
+
+        <!-- Background panels -->
+        <rect x="0"   y="0" width="598" height="560" fill="#0A0E1A"/>
+        <rect x="602" y="0" width="598" height="560" fill="#050A15"/>
+
+        <!-- ===== LEFT PANEL: Professor + Chalkboard ===== -->
+        <g clip-path="url(#clip-left)">
+          <!-- Chalkboard -->
+          <rect x="80" y="80" width="300" height="220"
+                fill="#1E293B" rx="4" transform="rotate(-2, 230, 190)" opacity="0.9"/>
+          <rect x="86" y="86" width="288" height="208"
+                fill="#182030" rx="2" transform="rotate(-2, 230, 190)" opacity="0.8"/>
+
+          <!-- 2D Molecule on chalkboard: benzene ring -->
+          <g transform="rotate(-2, 230, 190)" opacity="0.7">
+            <!-- Hexagon (benzene) -->
+            <polygon points="230,135 252,147 252,171 230,183 208,171 208,147"
+                     fill="none" stroke="#F8FAFC" stroke-width="1.8" opacity="0.75"/>
+            <!-- Double bond indicators (alternating) -->
+            <line x1="230" y1="137" x2="250" y2="149" stroke="#F8FAFC" stroke-width="1" opacity="0.5"/>
+            <line x1="250" y1="169" x2="230" y2="181" stroke="#F8FAFC" stroke-width="1" opacity="0.5"/>
+            <line x1="210" y1="149" x2="210" y2="169" stroke="#F8FAFC" stroke-width="1" opacity="0.5"/>
+            <!-- Substituents -->
+            <line x1="252" y1="147" x2="278" y2="132" stroke="#F8FAFC" stroke-width="1.8" opacity="0.7"/>
+            <text x="282" y="130" fill="#F8FAFC" font-size="13" font-family="monospace" opacity="0.8">OH</text>
+            <line x1="230" y1="183" x2="230" y2="210" stroke="#F8FAFC" stroke-width="1.8" opacity="0.7"/>
+            <text x="218" y="225" fill="#F8FAFC" font-size="12" font-family="monospace" opacity="0.8">NH₂</text>
+          </g>
+
+          <!-- Professor stick figure -->
+          <!-- Body -->
+          <line x1="430" y1="200" x2="430" y2="340" stroke="#94A3B8" stroke-width="2.5"/>
+          <!-- Head -->
+          <circle cx="430" cy="178" r="22" fill="none" stroke="#94A3B8" stroke-width="2.5"/>
+          <!-- Glasses: two small circles -->
+          <circle cx="423" cy="175" r="6" fill="none" stroke="#94A3B8" stroke-width="1.5"/>
+          <circle cx="437" cy="175" r="6" fill="none" stroke="#94A3B8" stroke-width="1.5"/>
+          <line x1="417" y1="175" x2="414" y2="175" stroke="#94A3B8" stroke-width="1.2"/>
+          <line x1="443" y1="175" x2="446" y2="175" stroke="#94A3B8" stroke-width="1.2"/>
+          <line x1="429" y1="175" x2="431" y2="175" stroke="#94A3B8" stroke-width="1.2"/>
+          <!-- Raised arm pointing at board -->
+          <line x1="430" y1="220" x2="350" y2="175" stroke="#94A3B8" stroke-width="2.5"/>
+          <line x1="350" y1="175" x2="335" y2="162" stroke="#94A3B8" stroke-width="2"/>
+          <!-- Other arm down -->
+          <line x1="430" y1="220" x2="460" y2="270" stroke="#94A3B8" stroke-width="2.5"/>
+          <!-- Legs -->
+          <line x1="430" y1="340" x2="410" y2="420" stroke="#94A3B8" stroke-width="2.5"/>
+          <line x1="430" y1="340" x2="450" y2="420" stroke="#94A3B8" stroke-width="2.5"/>
+
+          <!-- Caption -->
+          <text x="299" y="490" text-anchor="middle" class="svg-caption">"what they teach"</text>
+        </g>
+
+        <!-- ===== DIVIDER ===== -->
+        <rect x="598" y="0" width="4" height="560" fill="#1E293B"/>
+        <text x="600" y="295" text-anchor="middle" fill="#F8FAFC"
+              font-size="22" font-weight="700" font-family="sans-serif"
+              transform="rotate(-90, 600, 295)" letter-spacing="6">vs.</text>
+
+        <!-- ===== RIGHT PANEL: Real 3D binding pocket with explicit topology ===== -->
+        <g clip-path="url(#clip-right)">
+
+          <!-- Perspective floor grid (depth cue) -->
+          <g opacity="0.08" stroke="#22D3EE" stroke-width="0.7" fill="none">
+            <line x1="660" y1="495" x2="1180" y2="495"/>
+            <line x1="690" y1="455" x2="1150" y2="455"/>
+            <line x1="715" y1="420" x2="1125" y2="420"/>
+            <line x1="660" y1="495" x2="715" y2="420"/>
+            <line x1="780" y1="495" x2="810" y2="420"/>
+            <line x1="900" y1="495" x2="900" y2="420"/>
+            <line x1="1020" y1="495" x2="990" y2="420"/>
+            <line x1="1180" y1="495" x2="1125" y2="420"/>
+          </g>
+
+          <!-- Background α-helix ribbons (depth-faded, 3D scene context) -->
+          <path d="M 660 70 Q 700 100 670 130 Q 700 160 670 190 Q 700 220 670 250 Q 700 280 670 310 Q 700 340 670 370"
+                fill="none" stroke="#8B5CF6" stroke-width="6" stroke-linecap="round" opacity="0.32"/>
+          <path d="M 1140 90 Q 1100 120 1130 150 Q 1100 180 1130 210 Q 1100 240 1130 270 Q 1100 300 1130 330 Q 1100 360 1130 390"
+                fill="none" stroke="#8B5CF6" stroke-width="7" stroke-linecap="round" opacity="0.45"/>
+
+          <!-- β-sheet arrows (foreshortened, back layer) -->
+          <g opacity="0.32">
+            <polygon points="710,395 770,408 778,452 718,438" fill="#8B5CF6"/>
+            <polygon points="778,408 815,418 810,460 778,452" fill="#8B5CF6"/>
+            <polygon points="815,408 845,425 815,440" fill="#8B5CF6"/>
+          </g>
+
+          <!-- Pocket cavity (layered, deeper 3D feel) -->
+          <path d="M 760 195 C 800 145, 950 138, 1000 200
+                      C 1040 260, 1042 360, 1000 415
+                      C 950 475, 825 480, 785 425
+                      C 745 375, 720 265, 760 195 Z"
+                fill="#8B5CF6" opacity="0.14"/>
+          <path d="M 790 225 C 825 180, 940 175, 985 235
+                      C 1020 285, 1015 360, 985 400
+                      C 950 445, 850 445, 815 410
+                      C 780 375, 765 280, 790 225 Z"
+                fill="#8B5CF6" opacity="0.20"/>
+          <path d="M 820 255 C 850 215, 925 208, 960 258
+                      C 990 300, 985 350, 960 385
+                      C 935 415, 870 418, 845 393
+                      C 815 365, 805 290, 820 255 Z"
+                fill="url(#pocket-depth-s2)"/>
+
+          <!-- Concentric depth contour rings around binding center -->
+          <g fill="none" stroke="#22D3EE" stroke-width="0.6" opacity="0.22" stroke-dasharray="2 4">
+            <ellipse cx="890" cy="320" rx="100" ry="105"/>
+            <ellipse cx="890" cy="320" rx="78" ry="82"/>
+            <ellipse cx="890" cy="320" rx="56" ry="60"/>
+            <ellipse cx="890" cy="320" rx="36" ry="38"/>
+          </g>
+
+          <!-- ===== CHIRAL LIGAND with stereochemistry wedge bonds ===== -->
+          <g filter="url(#glow-m2)">
+
+            <!-- Bond OUT-OF-PAGE (solid wedge → NH₂, downward-front) -->
+            <polygon points="890,320 872,388 908,388" fill="#F472B6" opacity="0.92"/>
+
+            <!-- Bond INTO-PAGE (hashed wedge → H, upper-left, back) -->
+            <g stroke="#22D3EE" stroke-linecap="round">
+              <line x1="887" y1="312" x2="881" y2="287" stroke-width="1.4"/>
+              <line x1="884" y1="304" x2="874" y2="284" stroke-width="2.0"/>
+              <line x1="880" y1="296" x2="866" y2="280" stroke-width="2.5"/>
+              <line x1="876" y1="288" x2="858" y2="276" stroke-width="3.0"/>
+            </g>
+
+            <!-- Bond IN-PLANE LEFT (regular line → OH) -->
+            <line x1="881" y1="316" x2="838" y2="296" stroke="#22D3EE" stroke-width="2.5"/>
+
+            <!-- Bond IN-PLANE RIGHT (regular line → CH₃) -->
+            <line x1="899" y1="316" x2="942" y2="296" stroke="#22D3EE" stroke-width="2.5"/>
+
+            <!-- Substituent atoms (drawn AFTER bonds) -->
+            <circle cx="838" cy="296" r="11" fill="#0E1426" stroke="#22D3EE" stroke-width="2"/>
+            <text x="838" y="300" text-anchor="middle" fill="#F8FAFC" font-size="11" font-family="monospace">OH</text>
+
+            <circle cx="942" cy="296" r="11" fill="#0E1426" stroke="#22D3EE" stroke-width="2"/>
+            <text x="942" y="300" text-anchor="middle" fill="#F8FAFC" font-size="10" font-family="monospace">CH₃</text>
+
+            <circle cx="855" cy="270" r="10" fill="#0E1426" stroke="#22D3EE" stroke-width="2"/>
+            <text x="855" y="274" text-anchor="middle" fill="#F8FAFC" font-size="11" font-family="monospace">H</text>
+
+            <circle cx="890" cy="402" r="12" fill="#0E1426" stroke="#F472B6" stroke-width="2.5"/>
+            <text x="890" y="406" text-anchor="middle" fill="#F8FAFC" font-size="10" font-family="monospace">NH₂</text>
+
+            <!-- Central chiral carbon (drawn LAST, on top) -->
+            <circle cx="890" cy="320" r="12" fill="#F472B6"/>
+            <text x="890" y="324" text-anchor="middle" fill="#05070E"
+                  font-size="11" font-family="monospace" font-weight="700">C*</text>
+          </g>
+
+          <!-- Depth labels for the wedge convention -->
+          <text x="930" y="395" fill="#F472B6" font-size="9" font-family="monospace" opacity="0.95">▲ out of page</text>
+          <text x="845" y="252" fill="#22D3EE" font-size="9" font-family="monospace" opacity="0.95">▼ into page</text>
+
+          <!-- ===== Directional H-bond contacts ===== -->
+          <line x1="838" y1="296" x2="780" y2="252" stroke="#F472B6"
+                stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#hbond-arrow-s2)" opacity="0.9"/>
+          <text x="775" y="246" text-anchor="end" fill="#F472B6"
+                font-size="9" font-family="monospace" opacity="0.85">H-bond 2.8 Å</text>
+
+          <line x1="942" y1="296" x2="1010" y2="268" stroke="#F472B6"
+                stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#hbond-arrow-s2)" opacity="0.9"/>
+
+          <line x1="890" y1="402" x2="900" y2="455" stroke="#F472B6"
+                stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#hbond-arrow-s2)" opacity="0.9"/>
+
+          <!-- ===== R vs S enantiomer comparison inset ===== -->
+          <g transform="translate(1020, 440)">
+            <!-- Inset frame -->
+            <rect x="-100" y="-32" width="190" height="105" fill="#0A0E1A"
+                  stroke="#22D3EE" stroke-width="0.8" opacity="0.9" rx="3"/>
+            <text x="-92" y="-18" fill="#94A3B8" font-size="8" font-family="monospace"
+                  letter-spacing="0.5">SAME 2D · DIFFERENT 3D</text>
+
+            <!-- Mirror divider -->
+            <line x1="0" y1="-12" x2="0" y2="62" stroke="#1E293B" stroke-width="1" stroke-dasharray="3 3"/>
+
+            <!-- (R)-enantiomer: fits ✓ -->
+            <g transform="translate(-50, 22)">
+              <circle cx="0" cy="0" r="6" fill="#F472B6"/>
+              <polygon points="0,0 -14,18 0,18" fill="#F472B6" opacity="0.9"/>
+              <line x1="0" y1="0" x2="14" y2="-10" stroke="#22D3EE" stroke-width="1.5"/>
+              <line x1="0" y1="0" x2="-12" y2="-10" stroke="#22D3EE" stroke-width="1" stroke-dasharray="2 2"/>
+              <text x="0" y="40" text-anchor="middle" fill="#22D3EE"
+                    font-size="9" font-family="monospace" font-weight="700">(R) fits ✓</text>
+            </g>
+
+            <!-- (S)-enantiomer: clashes ✗ -->
+            <g transform="translate(50, 22)">
+              <circle cx="0" cy="0" r="6" fill="#F472B6"/>
+              <polygon points="0,0 14,18 0,18" fill="#94A3B8" opacity="0.85"/>
+              <line x1="0" y1="0" x2="-14" y2="-10" stroke="#94A3B8" stroke-width="1.5"/>
+              <line x1="0" y1="0" x2="12" y2="-10" stroke="#94A3B8" stroke-width="1" stroke-dasharray="2 2"/>
+              <!-- Clash indicator -->
+              <line x1="-11" y1="-9" x2="11" y2="13" stroke="#F472B6" stroke-width="1.6" opacity="0.8"/>
+              <line x1="11" y1="-9" x2="-11" y2="13" stroke="#F472B6" stroke-width="1.6" opacity="0.8"/>
+              <text x="0" y="40" text-anchor="middle" fill="#94A3B8"
+                    font-size="9" font-family="monospace">(S) clashes ✗</text>
+            </g>
+          </g>
+
+          <!-- Axis gizmo (top-right corner) -->
+          <g transform="translate(1145, 60)">
+            <line x1="0" y1="0" x2="22" y2="0" stroke="#F472B6" stroke-width="1.5"/>
+            <text x="26" y="4" fill="#F472B6" font-size="9" font-family="monospace">x</text>
+            <line x1="0" y1="0" x2="0" y2="22" stroke="#22D3EE" stroke-width="1.5"/>
+            <text x="-3" y="36" fill="#22D3EE" font-size="9" font-family="monospace">y</text>
+            <line x1="0" y1="0" x2="-15" y2="-15" stroke="#8B5CF6" stroke-width="1.5"/>
+            <text x="-26" y="-18" fill="#8B5CF6" font-size="9" font-family="monospace">z</text>
+          </g>
+
+          <!-- Captions -->
+          <text x="900" y="525" text-anchor="middle" class="svg-caption-cyan">"what actually happens"</text>
+          <text x="900" y="548" text-anchor="middle" fill="#94A3B8"
+                font-family="monospace" font-size="11" font-style="italic"
+                letter-spacing="0.04em">stereochemistry decides the fit</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 3 — INFRASTRUCTURE (Act 2A)
+     ============================================================ -->
+<section id="slide-3" aria-labelledby="s3-heading">
+  <div class="slide-inner visual-left">
+    <div class="slide-text">
+      <p class="slide-number">03 / 07 — The Experience</p>
+      <h2 id="s3-heading">Reach into the pocket. Feel the chemistry push back.</h2>
+      <p class="sub-headline">The first interface where the geometry teaches you back.</p>
+      <ul class="body-bullets">
+        <li>Atom-resolved protein, breathing in real-time</li>
+        <li>Grab a ligand, twist it, watch H-bonds snap into place</li>
+        <li>Flip chirality — watch the fit collapse</li>
+        <li>60 seconds in VR &gt; one semester of 2D diagrams</li>
+      </ul>
+    </div>
+
+    <!-- HAND INTO POCKET SVG -->
+    <div class="slide-visual">
+      <svg viewBox="0 0 580 440" width="580" height="440"
+           xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-labelledby="s3-svg-title s3-svg-desc">
+        <title id="s3-svg-title">VR gloved hand reaching into a protein binding pocket</title>
+        <desc id="s3-svg-desc">A wireframe VR gloved hand in cyan approaches a translucent violet binding pocket from the left. The hand's index finger and thumb pinch a ligand. Glowing magenta dotted lines show H-bond and vdW contacts.</desc>
+
+        <defs>
+          <filter id="glow-hb3" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="glow-hand3" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Pocket cavity: layered violet blobs (open to the left) -->
+        <path d="M 380 60 C 450 40, 560 80, 570 200
+                    C 580 320, 500 420, 400 420
+                    C 320 420, 290 370, 310 280
+                    C 330 190, 300 100, 380 60 Z"
+              fill="#8B5CF6" opacity="0.15"/>
+        <path d="M 380 80 C 440 62, 545 95, 555 205
+                    C 565 315, 495 405, 405 405
+                    C 335 405, 310 360, 328 278
+                    C 346 196, 318 100, 380 80 Z"
+              fill="#8B5CF6" opacity="0.2"/>
+        <path d="M 385 105 C 430 85, 530 115, 538 210
+                    C 546 305, 488 390, 410 390
+                    C 350 390, 330 350, 346 278
+                    C 362 206, 340 125, 385 105 Z"
+              fill="#22D3EE" opacity="0.06"/>
+
+        <!-- VR Hand wireframe (cyan line art, no fill) -->
+        <g filter="url(#glow-hand3)" stroke="#22D3EE" stroke-width="2" fill="none">
+          <!-- Palm outline -->
+          <path d="M 30 240 C 25 200, 40 160, 80 150
+                      C 120 140, 160 155, 170 200
+                      C 175 225, 165 255, 155 270
+                      C 145 285, 120 295, 90 295
+                      C 60 295, 32 280, 30 240 Z" opacity="0.7"/>
+
+          <!-- Grid lattice on palm -->
+          <g opacity="0.35" stroke-width="0.8">
+            <line x1="45" y1="165" x2="40" y2="285"/>
+            <line x1="70" y1="158" x2="65" y2="292"/>
+            <line x1="100" y1="153" x2="95" y2="294"/>
+            <line x1="130" y1="155" x2="125" y2="290"/>
+            <line x1="155" y1="163" x2="148" y2="282"/>
+            <line x1="35" y1="185" x2="168" y2="178"/>
+            <line x1="33" y1="210" x2="172" y2="205"/>
+            <line x1="33" y1="235" x2="170" y2="232"/>
+            <line x1="36" y1="260" x2="160" y2="258"/>
+          </g>
+
+          <!-- Thumb: 2 segments reaching up-right toward ligand -->
+          <line x1="155" y1="270" x2="195" y2="245"/>
+          <line x1="195" y1="245" x2="230" y2="225"/>
+
+          <!-- Index finger: 3 segments (pinching ligand) -->
+          <line x1="150" y1="210" x2="195" y2="195"/>
+          <line x1="195" y1="195" x2="235" y2="185"/>
+          <line x1="235" y1="185" x2="265" y2="200"/>
+
+          <!-- Middle finger -->
+          <line x1="152" y1="195" x2="195" y2="172"/>
+          <line x1="195" y1="172" x2="235" y2="155"/>
+          <line x1="235" y1="155" x2="258" y2="165"/>
+
+          <!-- Ring finger -->
+          <line x1="155" y1="178" x2="192" y2="152"/>
+          <line x1="192" y1="152" x2="228" y2="138"/>
+          <line x1="228" y1="138" x2="248" y2="148"/>
+
+          <!-- Pinky -->
+          <line x1="158" y1="163" x2="188" y2="138"/>
+          <line x1="188" y1="138" x2="215" y2="126"/>
+          <line x1="215" y1="126" x2="230" y2="136"/>
+
+          <!-- Knuckles -->
+          <circle cx="165" cy="210" r="4" fill="#22D3EE" stroke="none"/>
+          <circle cx="163" cy="196" r="3.5" fill="#22D3EE" stroke="none"/>
+          <circle cx="164" cy="179" r="3.5" fill="#22D3EE" stroke="none"/>
+          <circle cx="167" cy="163" r="3" fill="#22D3EE" stroke="none"/>
+        </g>
+
+        <!-- Ligand being pinched (between thumb tip and index tip) -->
+        <g filter="url(#glow-hb3)">
+          <!-- 5-atom ball-and-stick -->
+          <circle cx="248" cy="212" r="7" fill="#22D3EE"/>
+          <line x1="248" y1="212" x2="268" y2="198" stroke="#22D3EE" stroke-width="2"/>
+          <circle cx="268" cy="198" r="7" fill="#22D3EE"/>
+          <line x1="268" y1="198" x2="288" y2="210" stroke="#22D3EE" stroke-width="2"/>
+          <circle cx="288" cy="210" r="7" fill="#22D3EE"/>
+          <line x1="288" y1="210" x2="278" y2="230" stroke="#22D3EE" stroke-width="2"/>
+          <!-- Central magenta chirality atom with wedge stub -->
+          <circle cx="258" cy="222" r="9" fill="#F472B6"/>
+          <polygon points="258,222 266,238 250,238" fill="#F472B6" opacity="0.7"/>
+          <line x1="258" y1="222" x2="248" y2="212" stroke="#22D3EE" stroke-width="2"/>
+          <line x1="258" y1="222" x2="268" y2="198" stroke="#22D3EE" stroke-width="2"/>
+          <line x1="258" y1="222" x2="288" y2="210" stroke="#22D3EE" stroke-width="2"/>
+        </g>
+
+        <!-- H-bond contact lines from ligand into pocket wall -->
+        <g filter="url(#glow-hb3)">
+          <line x1="288" y1="210" x2="350" y2="195" stroke="#F472B6"
+                stroke-width="1.8" stroke-dasharray="2 5" opacity="0.9"/>
+          <circle cx="350" cy="195" r="5" fill="#F472B6" opacity="0.7"/>
+          <text x="310" y="188" fill="#94A3B8" font-family="monospace" font-size="10">H-bond 2.8 Å</text>
+
+          <line x1="268" y1="198" x2="340" y2="175" stroke="#F472B6"
+                stroke-width="1.8" stroke-dasharray="2 5" opacity="0.85"/>
+          <circle cx="340" cy="175" r="5" fill="#F472B6" opacity="0.6"/>
+
+          <line x1="258" y1="222" x2="355" y2="245" stroke="#F472B6"
+                stroke-width="1.5" stroke-dasharray="2 5" opacity="0.7"/>
+          <circle cx="355" cy="245" r="4" fill="#F472B6" opacity="0.5"/>
+          <text x="310" y="252" fill="#94A3B8" font-family="monospace" font-size="10">vdW contact</text>
+
+          <line x1="248" y1="212" x2="360" y2="230" stroke="#F472B6"
+                stroke-width="1.2" stroke-dasharray="2 5" opacity="0.55"/>
+          <circle cx="360" cy="230" r="3" fill="#F472B6" opacity="0.4"/>
+        </g>
+
+        <!-- Bottom caption -->
+        <text x="290" y="420" text-anchor="middle" fill="#F8FAFC"
+              font-family="sans-serif" font-size="14" font-weight="700">
+          <tspan fill="#22D3EE" text-decoration="underline">feel</tspan>
+          <tspan> the pocket</tspan>
+        </text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 4 — THE EXPERIENCE (Act 2B)
+     ============================================================ -->
+<section id="slide-4" aria-labelledby="s4-heading">
+  <div class="slide-inner">
+    <div class="slide-text">
+      <p class="slide-number">04 / 07 — Infrastructure</p>
+      <h2 id="s4-heading">A coordination substrate for serious 3D work.</h2>
+      <p class="sub-headline">One dispatcher. Many specialist agent teams. One shared canvas.</p>
+      <ul class="body-bullets">
+        <li>Central dispatcher routes subtasks to domain-owned agent teams</li>
+        <li>Each sub-team is autonomous, reports back, stays in sync on the shared scene</li>
+        <li>Built once for chemistry; reusable for any 3D domain</li>
+        <li>This is what lets a small team ship the work of a large one</li>
+      </ul>
+    </div>
+
+    <!-- HUB & SPOKE SVG -->
+    <div class="slide-visual">
+      <svg viewBox="0 0 520 520" width="520" height="520"
+           xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-labelledby="s4-svg-title s4-svg-desc">
+        <title id="s4-svg-title">Hub and spoke agent coordination diagram</title>
+        <desc id="s4-svg-desc">Central Dispatcher node connected to six specialist agent nodes: Frontend/VR, Biology, Docking, Education, Validation, and Infra. Animated dashed spokes suggest data packets flowing outward.</desc>
+
+        <defs>
+          <filter id="glow-hub" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="glow-spoke" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <radialGradient id="hub-grad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#22D3EE"/>
+            <stop offset="100%" stop-color="#8B5CF6"/>
+          </radialGradient>
+          <marker id="arrow-violet" markerWidth="6" markerHeight="6"
+                  refX="5" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L6,3 Z" fill="#8B5CF6"/>
+          </marker>
+        </defs>
+
+        <!-- cx=260 cy=260 center -->
+        <!-- Spoke lines (6, every 60°): 0°, 60°, 120°, 180°, 240°, 300° -->
+        <!-- Radius to node center = 210px -->
+
+        <!-- Spoke 0° (right) → Frontend/VR at (470, 260) -->
+        <line x1="330" y1="260" x2="428" y2="260"
+              stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="6 4">
+          <animate attributeName="stroke-dashoffset" from="0" to="-20"
+                   dur="2s" repeatCount="indefinite" begin="0s"/>
+        </line>
+        <!-- Packet dot -->
+        <circle r="5" fill="#F472B6" opacity="0.9">
+          <animateMotion dur="2s" repeatCount="indefinite" begin="0s">
+            <mpath href="#path-s0"/>
+          </animateMotion>
+        </circle>
+        <path id="path-s0" d="M330,260 L428,260" fill="none" visibility="hidden"/>
+
+        <!-- Spoke 60° → Biology at (365, 78) -->
+        <line x1="294" y1="199" x2="340" y2="118"
+              stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="6 4">
+          <animate attributeName="stroke-dashoffset" from="0" to="-20"
+                   dur="2s" repeatCount="indefinite" begin="0.33s"/>
+        </line>
+        <circle r="5" fill="#F472B6" opacity="0.9">
+          <animateMotion dur="2s" repeatCount="indefinite" begin="0.33s">
+            <mpath href="#path-s1"/>
+          </animateMotion>
+        </circle>
+        <path id="path-s1" d="M294,199 L340,118" fill="none" visibility="hidden"/>
+
+        <!-- Spoke 120° → Docking at (155, 78) -->
+        <line x1="225" y1="199" x2="180" y2="118"
+              stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="6 4">
+          <animate attributeName="stroke-dashoffset" from="0" to="-20"
+                   dur="2s" repeatCount="indefinite" begin="0.66s"/>
+        </line>
+        <circle r="5" fill="#F472B6" opacity="0.9">
+          <animateMotion dur="2s" repeatCount="indefinite" begin="0.66s">
+            <mpath href="#path-s2"/>
+          </animateMotion>
+        </circle>
+        <path id="path-s2" d="M225,199 L180,118" fill="none" visibility="hidden"/>
+
+        <!-- Spoke 180° (left) → Education at (50, 260) -->
+        <line x1="190" y1="260" x2="92" y2="260"
+              stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="6 4">
+          <animate attributeName="stroke-dashoffset" from="0" to="-20"
+                   dur="2s" repeatCount="indefinite" begin="1s"/>
+        </line>
+        <circle r="5" fill="#F472B6" opacity="0.9">
+          <animateMotion dur="2s" repeatCount="indefinite" begin="1s">
+            <mpath href="#path-s3"/>
+          </animateMotion>
+        </circle>
+        <path id="path-s3" d="M190,260 L92,260" fill="none" visibility="hidden"/>
+
+        <!-- Spoke 240° → Validation at (155, 442) -->
+        <line x1="225" y1="321" x2="180" y2="402"
+              stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="6 4">
+          <animate attributeName="stroke-dashoffset" from="0" to="-20"
+                   dur="2s" repeatCount="indefinite" begin="1.33s"/>
+        </line>
+        <circle r="5" fill="#F472B6" opacity="0.9">
+          <animateMotion dur="2s" repeatCount="indefinite" begin="1.33s">
+            <mpath href="#path-s4"/>
+          </animateMotion>
+        </circle>
+        <path id="path-s4" d="M225,321 L180,402" fill="none" visibility="hidden"/>
+
+        <!-- Spoke 300° → Infra at (365, 442) -->
+        <line x1="294" y1="321" x2="340" y2="402"
+              stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="6 4">
+          <animate attributeName="stroke-dashoffset" from="0" to="-20"
+                   dur="2s" repeatCount="indefinite" begin="1.66s"/>
+        </line>
+        <circle r="5" fill="#F472B6" opacity="0.9">
+          <animateMotion dur="2s" repeatCount="indefinite" begin="1.66s">
+            <mpath href="#path-s5"/>
+          </animateMotion>
+        </circle>
+        <path id="path-s5" d="M294,321 L340,402" fill="none" visibility="hidden"/>
+
+        <!-- Central hub node -->
+        <circle cx="260" cy="260" r="72" fill="url(#hub-grad)" filter="url(#glow-hub)" opacity="0.25"/>
+        <circle cx="260" cy="260" r="68" fill="url(#hub-grad)"/>
+        <text x="260" y="255" text-anchor="middle" fill="#F8FAFC"
+              font-family="monospace" font-size="13" font-weight="700">Dispatcher</text>
+        <text x="260" y="273" text-anchor="middle" fill="#F8FAFC"
+              font-family="monospace" font-size="10" opacity="0.7">central agent</text>
+
+        <!-- Spoke nodes -->
+        <!-- 0° Frontend/VR (470, 260) -->
+        <circle cx="470" cy="260" r="44" fill="#0E1426" stroke="#22D3EE" stroke-width="1.5"/>
+        <text x="470" y="256" text-anchor="middle" fill="#F8FAFC" font-family="monospace" font-size="10">Frontend</text>
+        <text x="470" y="270" text-anchor="middle" fill="#22D3EE" font-family="monospace" font-size="10">/ VR</text>
+
+        <!-- 60° Biology (365, 78) -->
+        <circle cx="365" cy="78" r="44" fill="#0E1426" stroke="#22D3EE" stroke-width="1.5"/>
+        <text x="365" y="82" text-anchor="middle" fill="#F8FAFC" font-family="monospace" font-size="11">Biology</text>
+
+        <!-- 120° Docking (155, 78) -->
+        <circle cx="155" cy="78" r="44" fill="#0E1426" stroke="#22D3EE" stroke-width="1.5"/>
+        <text x="155" y="82" text-anchor="middle" fill="#F8FAFC" font-family="monospace" font-size="11">Docking</text>
+
+        <!-- 180° Education (50, 260) -->
+        <circle cx="50" cy="260" r="44" fill="#0E1426" stroke="#22D3EE" stroke-width="1.5"/>
+        <text x="50" y="264" text-anchor="middle" fill="#F8FAFC" font-family="monospace" font-size="10">Education</text>
+
+        <!-- 240° Validation (155, 442) -->
+        <circle cx="155" cy="442" r="44" fill="#0E1426" stroke="#22D3EE" stroke-width="1.5"/>
+        <text x="155" y="438" text-anchor="middle" fill="#F8FAFC" font-family="monospace" font-size="10">Validation</text>
+        <text x="155" y="452" text-anchor="middle" fill="#22D3EE" font-family="monospace" font-size="9" opacity="0.8"></text>
+
+        <!-- 300° Infra (365, 442) -->
+        <circle cx="365" cy="442" r="44" fill="#0E1426" stroke="#22D3EE" stroke-width="1.5"/>
+        <text x="365" y="446" text-anchor="middle" fill="#F8FAFC" font-family="monospace" font-size="11">Infra</text>
+
+        <!-- Bottom caption -->
+        <text x="260" y="510" text-anchor="middle" fill="#94A3B8"
+              font-family="monospace" font-size="10">agents on a shared canvas — never colliding, always in sync</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 5 — HORIZONTAL FUTURE (Act 3)
+     ============================================================ -->
+<section id="slide-5" aria-labelledby="s5-heading">
+  <div class="slide-fullwidth" style="align-items:flex-start; justify-content: center;">
+    <div class="slide-text-top">
+      <p class="slide-number">05 / 07 — Horizontal Generalization</p>
+      <h2 id="s5-heading">The whole is greater than the sum of its parts.</h2>
+      <p class="sub-headline">The same agent-coordination + 3D scene engine ports straight into engineering, robotics, and any field where the geometry of small components decides the outcome.</p>
+      <ul class="body-bullets">
+        <li>Drug discovery is the wedge — the substrate is the moat</li>
+        <li>Wherever the parts are too small, too coupled, or too dangerous to disassemble, the same VR + agent stack applies</li>
+        <li>Robotics, mech-eng, semiconductor packaging, surgical planning — same primitives, different domain</li>
+        <li>Two growth axes from one origin: deeper into chemistry, wider into hardware</li>
+      </ul>
+    </div>
+
+    <!-- 2D GROWTH AXES PLOT SVG (moved here from old slide 7) -->
+    <div class="slide-visual-wide">
+      <svg viewBox="0 0 1000 680" width="100%" height="auto"
+           xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-labelledby="s5-svg-title s5-svg-desc">
+        <title id="s5-svg-title">Two-axis growth plot showing drug discovery depth vs spatial-reasoning breadth</title>
+        <desc id="s5-svg-desc">A 2D coordinate system with X-axis for horizontal spatial-reasoning verticals and Y-axis for vertical drug discovery depth. van-der-view sits at the origin with arrows extending along both axes and a fan of dotted projection lines showing addressable space.</desc>
+
+        <defs>
+          <filter id="glow-origin-s5" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <marker id="arrow-x-s5" markerWidth="8" markerHeight="8"
+                  refX="7" refY="4" orient="auto">
+            <path d="M0,0 L0,8 L8,4 Z" fill="#8B5CF6"/>
+          </marker>
+          <marker id="arrow-y-s5" markerWidth="8" markerHeight="8"
+                  refX="7" refY="4" orient="auto">
+            <path d="M0,0 L0,8 L8,4 Z" fill="#F472B6"/>
+          </marker>
+        </defs>
+
+        <!-- Origin coordinates: x=200, y=580 -->
+
+        <!-- Diagonal fan of addressable space (faint dotted projection lines) -->
+        <g opacity="0.13" stroke="#22D3EE" stroke-width="1" stroke-dasharray="4 6">
+          <line x1="200" y1="580" x2="880" y2="120"/>
+          <line x1="200" y1="580" x2="820" y2="100"/>
+          <line x1="200" y1="580" x2="760" y2="100"/>
+          <line x1="200" y1="580" x2="700" y2="110"/>
+          <line x1="200" y1="580" x2="640" y2="108"/>
+          <line x1="200" y1="580" x2="580" y2="108"/>
+          <line x1="200" y1="580" x2="520" y2="115"/>
+          <line x1="200" y1="580" x2="460" y2="120"/>
+          <line x1="200" y1="580" x2="400" y2="130"/>
+          <line x1="200" y1="580" x2="340" y2="150"/>
+        </g>
+
+        <!-- Addressable surface area label (upper-right fan area) -->
+        <text x="700" y="125" fill="#22D3EE" font-family="monospace" font-size="10"
+              opacity="0.4">addressable surface area, 5-yr horizon</text>
+
+        <!-- Y-axis (x=200, from y=580 up to y=100) -->
+        <line x1="200" y1="580" x2="200" y2="90"
+              stroke="#1E293B" stroke-width="1.5"/>
+        <!-- Y-axis tick marks + labels -->
+        <line x1="194" y1="460" x2="206" y2="460" stroke="#1E293B" stroke-width="1.2"/>
+        <text x="188" y="464" text-anchor="end" fill="#94A3B8" font-family="monospace" font-size="10">Teaching</text>
+        <line x1="194" y1="340" x2="206" y2="340" stroke="#1E293B" stroke-width="1.2"/>
+        <text x="188" y="344" text-anchor="end" fill="#94A3B8" font-family="monospace" font-size="10">Research</text>
+        <line x1="194" y1="220" x2="206" y2="220" stroke="#1E293B" stroke-width="1.2"/>
+        <text x="188" y="224" text-anchor="end" fill="#94A3B8" font-family="monospace" font-size="10">Design</text>
+        <!-- Y-axis rotated label -->
+        <text x="130" y="340" text-anchor="middle" fill="#94A3B8" font-family="monospace" font-size="10"
+              transform="rotate(-90, 130, 340)">↑ VERTICAL: drug discovery depth</text>
+
+        <!-- X-axis (y=580, from x=100 to x=900) -->
+        <line x1="100" y1="580" x2="910" y2="580"
+              stroke="#1E293B" stroke-width="1.5"/>
+        <!-- X-axis tick marks + labels -->
+        <line x1="400" y1="574" x2="400" y2="586" stroke="#1E293B" stroke-width="1.2"/>
+        <text x="400" y="600" text-anchor="middle" fill="#94A3B8" font-family="monospace" font-size="10">Robotics</text>
+        <line x1="600" y1="574" x2="600" y2="586" stroke="#1E293B" stroke-width="1.2"/>
+        <text x="600" y="600" text-anchor="middle" fill="#94A3B8" font-family="monospace" font-size="10">Mech-Eng</text>
+        <line x1="800" y1="574" x2="800" y2="586" stroke="#1E293B" stroke-width="1.2"/>
+        <text x="800" y="600" text-anchor="middle" fill="#94A3B8" font-family="monospace" font-size="10">Manufacturing</text>
+        <!-- X-axis label -->
+        <text x="910" y="600" text-anchor="end" fill="#94A3B8" font-family="monospace" font-size="10">
+          → HORIZONTAL: spatial-reasoning verticals
+        </text>
+
+        <!-- Arrow along X-axis (violet, toward x=880) -->
+        <line x1="200" y1="580" x2="872" y2="580"
+              stroke="#8B5CF6" stroke-width="4" marker-end="url(#arrow-x-s5)"/>
+        <!-- Mid-arrow label (X) -->
+        <text x="540" y="565" text-anchor="middle" fill="#8B5CF6"
+              font-family="monospace" font-size="11">JARVIS for hardware</text>
+
+        <!-- Arrow along Y-axis (magenta, toward y=120) -->
+        <line x1="200" y1="580" x2="200" y2="128"
+              stroke="#F472B6" stroke-width="4" marker-end="url(#arrow-y-s5)"/>
+        <!-- Mid-arrow label (Y) — rotated -->
+        <text x="200" y="340" text-anchor="middle" fill="#F472B6"
+              font-family="monospace" font-size="11"
+              transform="rotate(-90, 200, 340) translate(0, -18)">closed-loop rational design</text>
+
+        <!-- Origin glow node -->
+        <circle cx="200" cy="580" r="20" fill="#22D3EE" filter="url(#glow-origin-s5)" opacity="0.5"/>
+        <circle cx="200" cy="580" r="16" fill="#22D3EE"/>
+        <circle cx="200" cy="580" r="8" fill="#05070E"/>
+
+        <!-- Origin label -->
+        <text x="200" y="640" text-anchor="middle" fill="#F8FAFC"
+              font-family="monospace" font-size="11">van-der-view, today</text>
+
+        <!-- Bottom caption -->
+        <text x="500" y="665" text-anchor="middle" fill="#94A3B8"
+              font-family="serif" font-style="italic" font-size="12">
+          "the whole is greater than the sum of its parts."
+        </text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 6 — VERTICAL FUTURE / FEEDBACK LOOP (Act 3)
+     ============================================================ -->
+<section id="slide-6" aria-labelledby="s6-heading">
+  <div class="loop-layout">
+    <div class="slide-text">
+      <p class="slide-number">06 / 07 — Vertical Future</p>
+      <h2 id="s6-heading">Every VR session feeds the next molecule.</h2>
+      <p class="sub-headline">Topology intuition becomes a labelled dataset for rational design.</p>
+      <ul class="body-bullets">
+        <li>Captured: which pockets confused, which contacts mattered, which fits worked</li>
+        <li>Fed back into candidate iteration models</li>
+        <li>Each session sharpens both the chemist and the model</li>
+        <li>The viewer becomes a learning loop</li>
+      </ul>
+    </div>
+
+    <!-- FEEDBACK LOOP SVG -->
+    <div class="slide-visual">
+      <svg viewBox="0 0 520 520" width="520" height="520"
+           xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-labelledby="s6-svg-title s6-svg-desc">
+        <title id="s6-svg-title">Rational iteration feedback loop</title>
+        <desc id="s6-svg-desc">Four nodes at clock positions (Pocket, Insight, Candidate, Dock) connected by clockwise flowing curved arrows in violet. Center label reads "rational iteration".</desc>
+
+        <defs>
+          <filter id="glow-loop" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <marker id="arrow-loop" markerWidth="8" markerHeight="8"
+                  refX="7" refY="4" orient="auto">
+            <path d="M0,0 L0,8 L8,4 Z" fill="#F472B6"/>
+          </marker>
+          <radialGradient id="loop-ring-grad" cx="50%" cy="50%" r="50%">
+            <stop offset="70%" stop-color="transparent"/>
+            <stop offset="100%" stop-color="#22D3EE"/>
+          </radialGradient>
+        </defs>
+
+        <!-- cx=260, cy=260, node radius = 60, orbit radius = 175 -->
+        <!-- Nodes at: 12=260,85  3=435,260  6=260,435  9=85,260 -->
+
+        <!-- Faint cyan glow ring at perimeter -->
+        <circle cx="260" cy="260" r="210" fill="none" stroke="#22D3EE"
+                stroke-width="2" opacity="0.12" filter="url(#glow-loop)"/>
+        <circle cx="260" cy="260" r="210" fill="none" stroke="#22D3EE"
+                stroke-width="0.8" opacity="0.2"/>
+
+        <!-- Clockwise curved arrows between nodes -->
+        <!-- 12 → 3: Pocket → Insight -->
+        <path d="M 310 115 A 175 175 0 0 1 405 210"
+              fill="none" stroke="#8B5CF6" stroke-width="3"
+              stroke-dasharray="12 6" marker-end="url(#arrow-loop)">
+          <animate attributeName="stroke-dashoffset" from="0" to="-36"
+                   dur="2.5s" repeatCount="indefinite"/>
+        </path>
+        <!-- 3 → 6: Insight → Candidate -->
+        <path d="M 405 310 A 175 175 0 0 1 310 405"
+              fill="none" stroke="#8B5CF6" stroke-width="3"
+              stroke-dasharray="12 6" marker-end="url(#arrow-loop)">
+          <animate attributeName="stroke-dashoffset" from="0" to="-36"
+                   dur="2.5s" repeatCount="indefinite" begin="0.6s"/>
+        </path>
+        <!-- 6 → 9: Candidate → Dock -->
+        <path d="M 210 405 A 175 175 0 0 1 115 310"
+              fill="none" stroke="#8B5CF6" stroke-width="3"
+              stroke-dasharray="12 6" marker-end="url(#arrow-loop)">
+          <animate attributeName="stroke-dashoffset" from="0" to="-36"
+                   dur="2.5s" repeatCount="indefinite" begin="1.2s"/>
+        </path>
+        <!-- 9 → 12: Dock → Pocket -->
+        <path d="M 115 210 A 175 175 0 0 1 210 115"
+              fill="none" stroke="#8B5CF6" stroke-width="3"
+              stroke-dasharray="12 6" marker-end="url(#arrow-loop)">
+          <animate attributeName="stroke-dashoffset" from="0" to="-36"
+                   dur="2.5s" repeatCount="indefinite" begin="1.8s"/>
+        </path>
+
+        <!-- Node: Pocket (12 o'clock, 260, 85) -->
+        <circle cx="260" cy="85" r="60" fill="#0E1426" stroke="#22D3EE" stroke-width="2"/>
+        <text x="260" y="79" text-anchor="middle" fill="#F8FAFC" font-family="monospace" font-size="12" font-weight="700">Pocket</text>
+        <!-- Icon: concave arc -->
+        <path d="M 238 95 Q 260 115 282 95" fill="none" stroke="#22D3EE" stroke-width="1.8"/>
+
+        <!-- Node: Insight (3 o'clock, 435, 260) -->
+        <circle cx="435" cy="260" r="60" fill="#0E1426" stroke="#22D3EE" stroke-width="2"/>
+        <text x="435" y="254" text-anchor="middle" fill="#F8FAFC" font-family="monospace" font-size="12" font-weight="700">Insight</text>
+        <!-- Icon: lightbulb glyph -->
+        <path d="M 435 278 Q 427 270 428 264 Q 435 254 442 264 Q 443 270 435 278 Z"
+              fill="none" stroke="#F472B6" stroke-width="1.5"/>
+        <line x1="431" y1="278" x2="439" y2="278" stroke="#F472B6" stroke-width="1.2"/>
+        <line x1="432" y1="281" x2="438" y2="281" stroke="#F472B6" stroke-width="1.2"/>
+
+        <!-- Node: Candidate (6 o'clock, 260, 435) -->
+        <circle cx="260" cy="435" r="60" fill="#0E1426" stroke="#22D3EE" stroke-width="2"/>
+        <text x="260" y="429" text-anchor="middle" fill="#F8FAFC" font-family="monospace" font-size="12" font-weight="700">Candidate</text>
+        <!-- Icon: 4-atom molecule sketch -->
+        <circle cx="247" cy="448" r="5" fill="none" stroke="#22D3EE" stroke-width="1.5"/>
+        <circle cx="262" cy="442" r="5" fill="none" stroke="#22D3EE" stroke-width="1.5"/>
+        <circle cx="273" cy="450" r="5" fill="none" stroke="#22D3EE" stroke-width="1.5"/>
+        <circle cx="262" cy="456" r="5" fill="none" stroke="#22D3EE" stroke-width="1.5"/>
+        <line x1="247" y1="448" x2="262" y2="442" stroke="#22D3EE" stroke-width="1.3"/>
+        <line x1="262" y1="442" x2="273" y2="450" stroke="#22D3EE" stroke-width="1.3"/>
+        <line x1="273" y1="450" x2="262" y2="456" stroke="#22D3EE" stroke-width="1.3"/>
+        <line x1="262" y1="456" x2="247" y2="448" stroke="#22D3EE" stroke-width="1.3"/>
+
+        <!-- Node: Dock (9 o'clock, 85, 260) -->
+        <circle cx="85" cy="260" r="60" fill="#0E1426" stroke="#22D3EE" stroke-width="2"/>
+        <text x="85" y="254" text-anchor="middle" fill="#F8FAFC" font-family="monospace" font-size="12" font-weight="700">Dock</text>
+        <!-- Icon: ligand inside concave pocket -->
+        <path d="M 68 278 Q 85 268 102 278" fill="none" stroke="#22D3EE" stroke-width="1.5"/>
+        <circle cx="85" cy="270" r="7" fill="none" stroke="#F472B6" stroke-width="1.5"/>
+
+        <!-- Center label -->
+        <text x="260" y="252" text-anchor="middle" fill="#F8FAFC"
+              font-family="sans-serif" font-size="18" font-weight="700"
+              letter-spacing="-0.02em">rational iteration</text>
+        <text x="260" y="273" text-anchor="middle" fill="#94A3B8"
+              font-family="monospace" font-size="10">loop closes in days, not months</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SLIDE 7 — CLOSING / 2D MAP
+     ============================================================ -->
+<section id="slide-7" aria-labelledby="s7-heading">
+  <div class="slide-inner">
+    <div class="slide-text">
+      <p class="slide-number">07 / 07 — Closing</p>
+      <h2 id="s7-heading">Reach in. Move them. Yours to fund.</h2>
+      <p class="sub-headline">van der Waals taught us forces you cannot see. van-der-view lets you finally reach in — in chemistry, and in any hardware too small or too coupled to take apart.</p>
+      <ul class="body-bullets">
+        <li>Inspect a turbine without taking it apart — JARVIS-style for any spatially complex hardware</li>
+        <li>Diagnose a kinematic chain mid-flight — agent team narrates the geometry in real time</li>
+        <li>Drug discovery + spatial-reasoning verticals — both expand from the same origin</li>
+        <li><strong>Ask:</strong> partners in pharma, education pilots, and seed-stage capital</li>
+      </ul>
+      <p style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-mid);
+                letter-spacing: 0.08em; margin-top: 1.5rem;">
+        pharma partners &middot; education pilots &middot; seed capital &rarr; hello@van-der-view
+      </p>
+    </div>
+
+    <!-- EXPLODED ENGINE HUD SVG (moved here from old slide 5) -->
+    <div class="slide-visual">
+      <svg viewBox="0 0 580 500" width="580" height="500"
+           xmlns="http://www.w3.org/2000/svg"
+           role="img" aria-labelledby="s7-svg-title s7-svg-desc">
+        <title id="s7-svg-title">Exploded engine assembly with HUD annotations</title>
+        <desc id="s7-svg-desc">A stylized exploded-view jet engine with outer housing, shaft, fan blades, and gears. One highlighted gear component floats with HUD callout labels showing part number, wear index, and inspect mode.</desc>
+
+        <defs>
+          <filter id="glow-hud-s7" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- HUD corner overlay (top-right) -->
+        <text x="540" y="25" text-anchor="end" fill="#94A3B8" font-family="monospace" font-size="9">SYS NOMINAL</text>
+        <text x="540" y="39" text-anchor="end" fill="#22D3EE" font-family="monospace" font-size="9">MODE: INSPECT</text>
+        <text x="540" y="53" text-anchor="end" fill="#94A3B8" font-family="monospace" font-size="9">LATENCY 11ms</text>
+        <text x="540" y="67" text-anchor="end" fill="#94A3B8" font-family="monospace" font-size="9">OBSERVERS 1</text>
+
+        <!-- Engine assembly (exploded, diagonal axis) -->
+
+        <!-- Outer housing (left arc + right arc) -->
+        <path d="M 45 150 Q 55 250, 45 350" fill="none" stroke="#22D3EE" stroke-width="1.5" opacity="0.7"/>
+        <path d="M 45 150 L 230 120" stroke="#22D3EE" stroke-width="1.5" opacity="0.6"/>
+        <path d="M 45 350 L 230 370" stroke="#22D3EE" stroke-width="1.5" opacity="0.6"/>
+        <path d="M 230 120 Q 240 245, 230 370" fill="none" stroke="#22D3EE" stroke-width="1.5" opacity="0.7"/>
+
+        <!-- Inner shaft -->
+        <rect x="50" y="237" width="170" height="26" fill="none"
+              stroke="#22D3EE" stroke-width="1.5" opacity="0.7" rx="2"/>
+
+        <!-- Fan blade ring at left end -->
+        <g transform="translate(60, 250)" opacity="0.75">
+          <circle cx="0" cy="0" r="20" fill="none" stroke="#22D3EE" stroke-width="1.5"/>
+          <line x1="0" y1="-20" x2="0" y2="-45" stroke="#22D3EE" stroke-width="1.5"/>
+          <line x1="14" y1="-14" x2="32" y2="-32" stroke="#22D3EE" stroke-width="1.5"/>
+          <line x1="20" y1="0" x2="45" y2="0" stroke="#22D3EE" stroke-width="1.5"/>
+          <line x1="14" y1="14" x2="32" y2="32" stroke="#22D3EE" stroke-width="1.5"/>
+          <line x1="0" y1="20" x2="0" y2="45" stroke="#22D3EE" stroke-width="1.5"/>
+          <line x1="-14" y1="14" x2="-32" y2="32" stroke="#22D3EE" stroke-width="1.5"/>
+          <line x1="-20" y1="0" x2="-45" y2="0" stroke="#22D3EE" stroke-width="1.5"/>
+          <line x1="-14" y1="-14" x2="-32" y2="-32" stroke="#22D3EE" stroke-width="1.5"/>
+        </g>
+
+        <!-- Gear 1 (normal, right of housing) -->
+        <g transform="translate(300, 200)" opacity="0.75">
+          <circle cx="0" cy="0" r="30" fill="none" stroke="#22D3EE" stroke-width="1.5"/>
+          <circle cx="0" cy="0" r="10" fill="none" stroke="#22D3EE" stroke-width="1.2"/>
+          <g stroke="#22D3EE" stroke-width="1.5">
+            <line x1="0" y1="-30" x2="0" y2="-42"/>
+            <line x1="15" y1="-26" x2="22" y2="-36"/>
+            <line x1="26" y1="-15" x2="36" y2="-22"/>
+            <line x1="30" y1="0" x2="42" y2="0"/>
+            <line x1="26" y1="15" x2="36" y2="22"/>
+            <line x1="15" y1="26" x2="22" y2="36"/>
+            <line x1="0" y1="30" x2="0" y2="42"/>
+            <line x1="-15" y1="26" x2="-22" y2="36"/>
+            <line x1="-26" y1="15" x2="-36" y2="22"/>
+            <line x1="-30" y1="0" x2="-42" y2="0"/>
+            <line x1="-26" y1="-15" x2="-36" y2="-22"/>
+            <line x1="-15" y1="-26" x2="-22" y2="-36"/>
+          </g>
+        </g>
+
+        <!-- HIGHLIGHTED GEAR (Gear 2 — floated out, magenta) -->
+        <g transform="translate(420, 140)" filter="url(#glow-hud-s7)">
+          <circle cx="0" cy="0" r="32" fill="none" stroke="#F472B6" stroke-width="2.2"/>
+          <circle cx="0" cy="0" r="11" fill="none" stroke="#F472B6" stroke-width="1.5"/>
+          <g stroke="#F472B6" stroke-width="2">
+            <line x1="0" y1="-32" x2="0" y2="-45"/>
+            <line x1="16" y1="-28" x2="23" y2="-39"/>
+            <line x1="28" y1="-16" x2="39" y2="-23"/>
+            <line x1="32" y1="0" x2="45" y2="0"/>
+            <line x1="28" y1="16" x2="39" y2="23"/>
+            <line x1="16" y1="28" x2="23" y2="39"/>
+            <line x1="0" y1="32" x2="0" y2="45"/>
+            <line x1="-16" y1="28" x2="-23" y2="39"/>
+            <line x1="-28" y1="16" x2="-39" y2="23"/>
+            <line x1="-32" y1="0" x2="-45" y2="0"/>
+            <line x1="-28" y1="-16" x2="-39" y2="-23"/>
+            <line x1="-16" y1="-28" x2="-23" y2="-39"/>
+          </g>
+          <line x1="-10" y1="0" x2="10" y2="0" stroke="#22D3EE" stroke-width="1"/>
+          <line x1="0" y1="-10" x2="0" y2="10" stroke="#22D3EE" stroke-width="1"/>
+          <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="#22D3EE" stroke-width="0.8"/>
+        </g>
+
+        <!-- HUD callout lines -->
+        <line x1="460" y1="120" x2="490" y2="100" stroke="#22D3EE" stroke-width="1" opacity="0.8"/>
+        <line x1="490" y1="100" x2="540" y2="100" stroke="#22D3EE" stroke-width="1" opacity="0.8"/>
+        <rect x="492" y="97" width="3" height="3" fill="#22D3EE"/>
+        <text x="543" y="103" fill="#F8FAFC" font-family="monospace" font-size="10">PART-7B / BEARING</text>
+
+        <line x1="460" y1="155" x2="490" y2="155" stroke="#22D3EE" stroke-width="1" opacity="0.8"/>
+        <line x1="490" y1="155" x2="540" y2="155" stroke="#22D3EE" stroke-width="1" opacity="0.8"/>
+        <rect x="492" y="152" width="3" height="3" fill="#22D3EE"/>
+        <text x="543" y="158" fill="#F472B6" font-family="monospace" font-size="10">WEAR INDEX 0.42</text>
+
+        <line x1="455" y1="175" x2="490" y2="195" stroke="#22D3EE" stroke-width="1" opacity="0.8"/>
+        <line x1="490" y1="195" x2="540" y2="195" stroke="#22D3EE" stroke-width="1" opacity="0.8"/>
+        <rect x="492" y="192" width="3" height="3" fill="#22D3EE"/>
+        <text x="543" y="198" fill="#22D3EE" font-family="monospace" font-size="10">INSPECT</text>
+
+        <!-- Gear 3 (small, right edge of housing exit) -->
+        <g transform="translate(305, 310)" opacity="0.65">
+          <circle cx="0" cy="0" r="22" fill="none" stroke="#22D3EE" stroke-width="1.2"/>
+          <circle cx="0" cy="0" r="7" fill="none" stroke="#22D3EE" stroke-width="1"/>
+          <g stroke="#22D3EE" stroke-width="1.2">
+            <line x1="0" y1="-22" x2="0" y2="-31"/>
+            <line x1="16" y1="-16" x2="22" y2="-22"/>
+            <line x1="22" y1="0" x2="31" y2="0"/>
+            <line x1="16" y1="16" x2="22" y2="22"/>
+            <line x1="0" y1="22" x2="0" y2="31"/>
+            <line x1="-16" y1="16" x2="-22" y2="22"/>
+            <line x1="-22" y1="0" x2="-31" y2="0"/>
+            <line x1="-16" y1="-16" x2="-22" y2="-22"/>
+          </g>
+        </g>
+
+        <!-- Bottom caption -->
+        <text x="290" y="475" text-anchor="middle" fill="#94A3B8"
+              font-family="serif" font-style="italic" font-size="11.5">
+          "see the forces. reach in. move them."
+        </text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer>
+  built with the van-der-view agent substrate &middot; 2026
+</footer>
+
+<!-- ============================================================
+     JAVASCRIPT: Dot Nav + Keyboard Navigation
+     ============================================================ -->
+<script>
+(function () {
+  'use strict';
+
+  var mainEl  = document.getElementById('main-scroll');
+  var dots    = document.querySelectorAll('.dot');
+  var sections = document.querySelectorAll('section');
+  var total    = sections.length;
+  var current  = 0;
+
+  function activateDot(idx) {
+    dots.forEach(function (d, i) {
+      d.classList.toggle('active', i === idx);
+    });
+    current = idx;
+  }
+
+  // Scroll to a section
+  function scrollToSlide(idx) {
+    if (idx < 0 || idx >= total) return;
+    sections[idx].scrollIntoView({ behavior: 'smooth' });
+    activateDot(idx);
+  }
+
+  // Dot click handlers
+  dots.forEach(function (dot, idx) {
+    dot.addEventListener('click', function () {
+      scrollToSlide(idx);
+    });
+  });
+
+  // Keyboard navigation
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'PageDown') {
+      e.preventDefault();
+      scrollToSlide(current + 1);
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault();
+      scrollToSlide(current - 1);
+    }
+  });
+
+  // IntersectionObserver to keep dot in sync while scrolling
+  var observer = new IntersectionObserver(
+    function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+          var idx = Array.prototype.indexOf.call(sections, entry.target);
+          if (idx !== -1) activateDot(idx);
+        }
+      });
+    },
+    { root: mainEl, threshold: 0.5 }
+  );
+
+  sections.forEach(function (sec) { observer.observe(sec); });
+}());
+</script>
+</body>
+</html>
